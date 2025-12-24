@@ -11,6 +11,8 @@ import { useRouter } from 'next/navigation';
 import { Main } from '@/components/Main';
 import type { PhraseResponse } from '@/lib/api';
 
+import { bodaiList } from '@/data/bodaiList';
+
 export default function AfterLoginPage() {
   const router = useRouter();
   const [phraseData, setPhraseData] = useState<PhraseResponse | null>(null);
@@ -30,7 +32,7 @@ export default function AfterLoginPage() {
       const data = JSON.parse(phraseJson) as PhraseResponse;
       setPhraseData(data);
     } catch (error) {
-      console.error('Failed to parse phrase data:', error);
+      console.error('データの取得に失敗しました:', error);
       router.replace('/');
       return;
     } finally {
@@ -41,7 +43,7 @@ export default function AfterLoginPage() {
   // ローディング中の表示
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-gradient-to-b from-[#ffa366] to-[#ff9966] flex items-center justify-center">
+      <div className="min-h-screen flex items-center justify-center">
         <div className="text-white text-xl">読み込み中...</div>
       </div>
     );
@@ -53,5 +55,5 @@ export default function AfterLoginPage() {
   }
 
   // メイン画面を表示
-  return <Main phraseData={phraseData} />;
+  return <Main phraseData={phraseData} bodai={bodaiList} />;
 }

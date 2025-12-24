@@ -13,6 +13,8 @@ import { useLoginForm } from '@/hooks/useLoginForm';
 import { TextFieldCard } from './TextFieldCard';
 import { BackgroundPattern } from './BackgroundPattern';
 
+import mainTitle from '@/assets/img/main-title.png';
+
 /**
  * ログインフォーム
  * - 会員番号（CA番号）入力
@@ -43,10 +45,8 @@ export function LoginForm() {
         {/* ロゴ画像 */}
         <h1 style={{ width: sizeClamp(340, 500) }} className="mb-6">
           <Image
-            src="/images/logo.png"
+            src={mainTitle}
             alt="心の光を見つける 12の物語 インスタレーション"
-            width={343}
-            height={187}
             className="w-full h-auto"
             priority
           />

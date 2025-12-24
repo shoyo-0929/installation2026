@@ -27,6 +27,7 @@ type TraceCanvasProps = {
   strokeWidth?: number
   glowColor?: string
   glowBlur?: number
+  sparkleColor?: string
 }
 
 const DEFAULT_BASE_SIZE = 1024
@@ -36,6 +37,19 @@ const CLOSE_SEGMENTS = 12
 const RESUME_THRESHOLD_BASE = 30
 const CLOSE_THRESHOLD_RATIO = 0.06
 const CLOSE_THRESHOLD_MAX = 60
+const MAX_PARTICLES = 110
+
+type SparkleParticle = {
+  x: number
+  y: number
+  vx: number
+  vy: number
+  life: number
+  ttl: number
+  size: number
+  phase: number
+  twinkle: number
+}
 
 export const TraceCanvas = forwardRef<TraceCanvasHandle, TraceCanvasProps>(
   function TraceCanvas(
@@ -46,28 +60,42 @@ export const TraceCanvas = forwardRef<TraceCanvasHandle, TraceCanvasProps>(
       strokeWidth = 6,
       glowColor = 'rgba(255,255,255,0.8)',
       glowBlur = 10,
+      sparkleColor = 'rgba(255,255,255,0.95)',
     },
     ref
   ) {
     const containerRef = useRef<HTMLDivElement | null>(null)
-    const canvasRef = useRef<HTMLCanvasElement | null>(null)
+    const strokeCanvasRef = useRef<HTMLCanvasElement | null>(null)
+    const effectCanvasRef = useRef<HTMLCanvasElement | null>(null)
     const pointsRef = useRef<TracePoint[]>([])
     const closeCandidateIndexRef = useRef<number | null>(null)
+    const particlesRef = useRef<SparkleParticle[]>([])
+    const animationFrameRef = useRef<number | null>(null)
+    const lastTimeRef = useRef<number | null>(null)
     const isDrawingRef = useRef(false)
     const isClosedRef = useRef(false)
     const viewScaleRef = useRef(1)
     const viewSizeRef = useRef(0)
 
     const clearCanvas = useCallback(() => {
-      const canvas = canvasRef.current
-      if (!canvas) return
-      const ctx = canvas.getContext('2d')
-      if (!ctx) return
-      ctx.clearRect(0, 0, viewSizeRef.current, viewSizeRef.current)
+      const strokeCanvas = strokeCanvasRef.current
+      if (strokeCanvas) {
+        const ctx = strokeCanvas.getContext('2d')
+        if (ctx) {
+          ctx.clearRect(0, 0, viewSizeRef.current, viewSizeRef.current)
+        }
+      }
+      const effectCanvas = effectCanvasRef.current
+      if (effectCanvas) {
+        const ctx = effectCanvas.getContext('2d')
+        if (ctx) {
+          ctx.clearRect(0, 0, viewSizeRef.current, viewSizeRef.current)
+        }
+      }
     }, [])
 
-    const redraw = useCallback(() => {
-      const canvas = canvasRef.current
+    const redrawStroke = useCallback(() => {
+      const canvas = strokeCanvasRef.current
       if (!canvas) return
       const ctx = canvas.getContext('2d')
       if (!ctx) return
@@ -128,10 +156,126 @@ export const TraceCanvas = forwardRef<TraceCanvasHandle, TraceCanvasProps>(
       ctx.restore()
     }, [strokeColor, strokeWidth, glowColor, glowBlur])
 
+    const redrawParticles = useCallback(() => {
+      const canvas = effectCanvasRef.current
+      if (!canvas) return
+      const ctx = canvas.getContext('2d')
+      if (!ctx) return
+      const particles = particlesRef.current
+      ctx.clearRect(0, 0, viewSizeRef.current, viewSizeRef.current)
+      if (particles.length === 0) return
+
+      const viewScale = viewScaleRef.current
+      ctx.save()
+      ctx.globalCompositeOperation = 'lighter'
+      const lineThickness = Math.max(0.5, viewScale * 0.7)
+      particles.forEach((particle) => {
+        const progress = particle.life / particle.ttl
+        if (progress >= 1) return
+        const twinkle =
+          0.6 + 0.4 * Math.sin(particle.phase + particle.life * particle.twinkle)
+        const alpha = (1 - progress) * (0.5 + twinkle * 0.5)
+        const radius = particle.size * (0.6 + twinkle * 0.6) * viewScale
+        const x = particle.x * viewScale
+        const y = particle.y * viewScale
+
+        ctx.shadowColor = sparkleColor
+        ctx.shadowBlur = Math.max(6, radius * 6)
+        ctx.fillStyle = `rgba(255,255,255,${alpha})`
+        ctx.beginPath()
+        ctx.arc(x, y, radius, 0, Math.PI * 2)
+        ctx.fill()
+
+        ctx.shadowBlur = Math.max(4, radius * 4)
+        ctx.strokeStyle = `rgba(255,255,255,${alpha * 0.8})`
+        ctx.lineWidth = lineThickness
+        ctx.beginPath()
+        ctx.moveTo(x - radius * 2.4, y)
+        ctx.lineTo(x + radius * 2.4, y)
+        ctx.moveTo(x, y - radius * 2.4)
+        ctx.lineTo(x, y + radius * 2.4)
+        ctx.stroke()
+      })
+      ctx.restore()
+    }, [sparkleColor])
+
+    const updateParticles = useCallback((deltaMs: number) => {
+      if (deltaMs <= 0) return
+      const particles = particlesRef.current
+      if (particles.length === 0) return
+      const next: SparkleParticle[] = []
+      for (const particle of particles) {
+        particle.life += deltaMs
+        if (particle.life < particle.ttl) {
+          particle.x += particle.vx * deltaMs
+          particle.y += particle.vy * deltaMs
+          next.push(particle)
+        }
+      }
+      particlesRef.current = next
+    }, [])
+
+    const startAnimationLoop = useCallback(() => {
+      if (animationFrameRef.current !== null) return
+      const step = (time: number) => {
+        if (lastTimeRef.current === null) {
+          lastTimeRef.current = time
+        }
+        const deltaMs = time - lastTimeRef.current
+        if (deltaMs < 33) {
+          animationFrameRef.current = window.requestAnimationFrame(step)
+          return
+        }
+        const delta = Math.min(48, deltaMs)
+        lastTimeRef.current = time
+        updateParticles(delta)
+        redrawParticles()
+        if (particlesRef.current.length > 0) {
+          animationFrameRef.current = window.requestAnimationFrame(step)
+        } else {
+          animationFrameRef.current = null
+          lastTimeRef.current = null
+        }
+      }
+      animationFrameRef.current = window.requestAnimationFrame(step)
+    }, [redrawParticles, updateParticles])
+
+    const spawnSparkles = useCallback(
+      (point: TracePoint) => {
+        const spawnCount = 2
+        for (let i = 0; i < spawnCount; i += 1) {
+          const angle = Math.random() * Math.PI * 2
+          const speed = 0.02 + Math.random() * 0.04
+          const ttl = 260 + Math.random() * 280
+          const size = 1.9 + Math.random() * 2.2
+          particlesRef.current.push({
+            x: point.x + (Math.random() - 0.5) * 6,
+            y: point.y + (Math.random() - 0.5) * 6,
+            vx: Math.cos(angle) * speed,
+            vy: Math.sin(angle) * speed - 0.012,
+            life: 0,
+            ttl,
+            size,
+            phase: Math.random() * Math.PI * 2,
+            twinkle: 0.018 + Math.random() * 0.02,
+          })
+        }
+        if (particlesRef.current.length > MAX_PARTICLES) {
+          particlesRef.current.splice(
+            0,
+            particlesRef.current.length - MAX_PARTICLES
+          )
+        }
+        startAnimationLoop()
+      },
+      [startAnimationLoop]
+    )
+
     const resizeCanvas = useCallback(() => {
       const container = containerRef.current
-      const canvas = canvasRef.current
-      if (!container || !canvas) return
+      const strokeCanvas = strokeCanvasRef.current
+      const effectCanvas = effectCanvasRef.current
+      if (!container || !strokeCanvas || !effectCanvas) return
       const rect = container.getBoundingClientRect()
       const size = Math.min(rect.width, rect.height)
       if (!size) return
@@ -140,22 +284,33 @@ export const TraceCanvas = forwardRef<TraceCanvasHandle, TraceCanvasProps>(
       viewScaleRef.current = size / baseSize
       viewSizeRef.current = size
 
-      canvas.width = size * ratio
-      canvas.height = size * ratio
-      canvas.style.width = `${size}px`
-      canvas.style.height = `${size}px`
+      strokeCanvas.width = size * ratio
+      strokeCanvas.height = size * ratio
+      strokeCanvas.style.width = `${size}px`
+      strokeCanvas.style.height = `${size}px`
 
-      const ctx = canvas.getContext('2d')
-      if (ctx) {
-        ctx.setTransform(ratio, 0, 0, ratio, 0, 0)
+      effectCanvas.width = size * ratio
+      effectCanvas.height = size * ratio
+      effectCanvas.style.width = `${size}px`
+      effectCanvas.style.height = `${size}px`
+
+      const strokeCtx = strokeCanvas.getContext('2d')
+      if (strokeCtx) {
+        strokeCtx.setTransform(ratio, 0, 0, ratio, 0, 0)
       }
 
-      redraw()
-    }, [baseSize, redraw])
+      const effectCtx = effectCanvas.getContext('2d')
+      if (effectCtx) {
+        effectCtx.setTransform(ratio, 0, 0, ratio, 0, 0)
+      }
+
+      redrawStroke()
+      redrawParticles()
+    }, [baseSize, redrawStroke, redrawParticles])
 
     const toBasePoint = useCallback(
       (event: PointerEvent<HTMLCanvasElement>): TracePoint | null => {
-        const canvas = canvasRef.current
+        const canvas = effectCanvasRef.current
         if (!canvas) return null
         const rect = canvas.getBoundingClientRect()
         if (!rect.width) return null
@@ -180,6 +335,7 @@ export const TraceCanvas = forwardRef<TraceCanvasHandle, TraceCanvasProps>(
 
         if (!last) {
           points.push(point)
+          spawnSparkles(point)
           return
         }
 
@@ -198,9 +354,10 @@ export const TraceCanvas = forwardRef<TraceCanvasHandle, TraceCanvasProps>(
           ) {
             closeCandidateIndexRef.current = points.length - 1
           }
+          spawnSparkles(point)
         }
       },
-      [baseSize]
+      [baseSize, spawnSparkles]
     )
 
     const finalizePath = useCallback(() => {
@@ -215,7 +372,8 @@ export const TraceCanvas = forwardRef<TraceCanvasHandle, TraceCanvasProps>(
       const distanceToStart = Math.hypot(end.x - start.x, end.y - start.y)
       const closeIndex = closeCandidateIndexRef.current
 
-      if (distanceToStart > closeThreshold && closeIndex === null) {
+      if (distanceToStart > closeThreshold) {
+        closeCandidateIndexRef.current = null
         isClosedRef.current = false
         return
       }
@@ -278,7 +436,13 @@ export const TraceCanvas = forwardRef<TraceCanvasHandle, TraceCanvasProps>(
     const resetPath = useCallback(() => {
       pointsRef.current = []
       closeCandidateIndexRef.current = null
+      particlesRef.current = []
       isClosedRef.current = false
+      if (animationFrameRef.current !== null) {
+        window.cancelAnimationFrame(animationFrameRef.current)
+        animationFrameRef.current = null
+        lastTimeRef.current = null
+      }
       clearCanvas()
     }, [clearCanvas])
 
@@ -306,9 +470,9 @@ export const TraceCanvas = forwardRef<TraceCanvasHandle, TraceCanvasProps>(
         isDrawingRef.current = true
         event.currentTarget.setPointerCapture(event.pointerId)
         appendPoint(point)
-        redraw()
+        redrawStroke()
       },
-      [appendPoint, redraw, resetPath, toBasePoint]
+      [appendPoint, redrawStroke, resetPath, toBasePoint]
     )
 
     const handlePointerMove = useCallback(
@@ -318,9 +482,9 @@ export const TraceCanvas = forwardRef<TraceCanvasHandle, TraceCanvasProps>(
         const point = toBasePoint(event)
         if (!point) return
         appendPoint(point)
-        redraw()
+        redrawStroke()
       },
-      [appendPoint, redraw, toBasePoint]
+      [appendPoint, redrawStroke, toBasePoint]
     )
 
     const handlePointerUp = useCallback(
@@ -329,10 +493,10 @@ export const TraceCanvas = forwardRef<TraceCanvasHandle, TraceCanvasProps>(
         event.preventDefault()
         isDrawingRef.current = false
         finalizePath()
-        redraw()
+        redrawStroke()
         event.currentTarget.releasePointerCapture(event.pointerId)
       },
-      [finalizePath, redraw]
+      [finalizePath, redrawStroke]
     )
 
     const handlePointerCancel = useCallback(
@@ -341,10 +505,10 @@ export const TraceCanvas = forwardRef<TraceCanvasHandle, TraceCanvasProps>(
         event.preventDefault()
         isDrawingRef.current = false
         finalizePath()
-        redraw()
+        redrawStroke()
         event.currentTarget.releasePointerCapture(event.pointerId)
       },
-      [finalizePath, redraw]
+      [finalizePath, redrawStroke]
     )
 
     useImperativeHandle(
@@ -367,6 +531,14 @@ export const TraceCanvas = forwardRef<TraceCanvasHandle, TraceCanvasProps>(
       return () => observer.disconnect()
     }, [resizeCanvas])
 
+    useEffect(() => {
+      return () => {
+        if (animationFrameRef.current !== null) {
+          window.cancelAnimationFrame(animationFrameRef.current)
+        }
+      }
+    }, [])
+
     const hasPositionClass =
       className?.includes('absolute') ||
       className?.includes('fixed') ||
@@ -381,8 +553,13 @@ export const TraceCanvas = forwardRef<TraceCanvasHandle, TraceCanvasProps>(
     return (
       <div ref={containerRef} className={containerClassName}>
         <canvas
-          ref={canvasRef}
-          className="absolute inset-0 w-full h-full touch-none select-none"
+          ref={strokeCanvasRef}
+          className="absolute inset-0 z-0 w-full h-full pointer-events-none"
+          aria-hidden="true"
+        />
+        <canvas
+          ref={effectCanvasRef}
+          className="absolute inset-0 z-10 w-full h-full touch-none select-none bg-transparent"
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}

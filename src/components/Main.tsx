@@ -335,10 +335,10 @@ export function Main({
             ref={traceRef}
             className="absolute inset-0 z-10"
             baseSize={BASE_CANVAS_SIZE}
-            strokeColor="rgba(255,255,255,0.95)"
+            strokeColor="rgba(255,255,255,1)"
             strokeWidth={8}
-            glowColor="rgba(255,255,255,0.9)"
-            glowBlur={18}
+            glowColor="rgba(255,255,255,1)"
+            glowBlur={34}
           />
 
           {/* 枠内のコンテンツ */}

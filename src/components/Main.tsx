@@ -1,24 +1,18 @@
-/**
- * ログイン成功後の画面コンポーネント
- *
- * ユーザーの投稿内容を表示し、点線をなぞって「稲穂の心」を
- * アートスペースに送る画面。
- */
 'use client';
 
-import { sizeClamp } from '@/lib/css';
 import NextImage from 'next/image';
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
-import { uploadCutoutImage, type PhraseResponse } from '@/lib/api';
-import iconOperation from '@/assets/img/icon_operation.svg';
-import changeIcon from '@/assets/img/icon_change.svg';
+import { type PhraseResponse } from '@/lib/api';
 import type { SafeZoneDebug } from '@/components/SafeZoneDebugOverlay';
 import { SafeZoneDialogs } from '@/components/SafeZoneDialogs';
 import { TraceStage } from '@/components/TraceStage';
 import { TracePreviewDialog } from '@/components/TracePreviewDialog';
 import { SubmitSuccessAnimation } from '@/components/SubmitSuccessAnimation';
 import { CompletionScreen } from '@/components/CompletionScreen';
+import { TraceHeader } from '@/components/TraceHeader';
+import { BackgroundChangeButton } from '@/components/BackgroundChangeButton';
+import { DebugControls } from '@/components/DebugControls';
 import type { TraceCanvasHandle, TracePoint } from '@/components/TraceCanvas';
 import type { Bodai } from '@/types/bodai';
 import { branchList } from '@/data/branchList';
@@ -27,19 +21,14 @@ import {
   SAFE_ZONE_PADDING,
   SAFE_ZONE_WARN_RADIUS_RATIO,
   SAFE_ZONE_RESET_RADIUS_RATIO,
-  SAFE_ZONE_CENTER_TOLERANCE,
   TRACE_STROKE_WIDTH,
   type SafeZoneInfo,
   getSafeZoneCenter,
   getSafeZoneDistanceRatio,
-  isLoopedPath,
-  isPointInsidePath,
-  LOOP_CLOSE_THRESHOLD_RATIO,
-  LOOP_CLOSE_THRESHOLD_MAX,
-  LOOP_MIN_LENGTH_RATIO,
 } from '@/lib/trace-utils';
 import { generateTraceImage } from '@/lib/image-generation';
 import { useTraceLogic } from '@/hooks/useTraceLogic';
+import { useCutoutUpload } from '@/hooks/useCutoutUpload';
 
 export interface AfterLoginScreenProps {
   /** 会員の投稿情報 */
@@ -261,6 +250,8 @@ export function Main({
             distanceRatio <= SAFE_ZONE_WARN_RADIUS_RATIO
           ) {
             setSafeZoneWarningRatio(distanceRatio);
+            setSafeZoneUnclosedOpen(false);
+            setSafeZoneResetOpen(false);
             setTraceReady(false);
             return;
           }
@@ -273,7 +264,7 @@ export function Main({
           bgImageIndex,
           points,
           phraseLines,
-          myPhrase: { name: myPhrase.name, branch: myPhrase.branch },
+          myPhrase: { name: myPhrase.name, branch: Number(myPhrase.branch) },
           iconElement: iconRef.current,
           bodyElement: bodyRef.current,
           nameElement: nameRef.current,
@@ -300,6 +291,8 @@ export function Main({
       getSafeZoneInfo,
       setSafeZoneWarningRatio,
       setTraceReady,
+      setSafeZoneUnclosedOpen,
+      setSafeZoneResetOpen,
     ]
   );
 
@@ -345,55 +338,32 @@ export function Main({
     handleRestartTrace();
   }, [handleRestartTrace, setSafeZoneResetOpen]);
 
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadError, setUploadError] = useState<string | null>(null);
   const [showSuccessAnimation, setShowSuccessAnimation] = useState(false);
   const [successImageUrl, setSuccessImageUrl] = useState<string | null>(null);
   const [showCompletionScreen, setShowCompletionScreen] = useState(false);
 
+  // useCutoutUpload フックを使用
+  const { isUploading, uploadError, startUpload } = useCutoutUpload();
+
   const handleConfirmSubmit = useCallback(async () => {
     if (!generatedImageUrl || isUploading) return;
 
-    setIsUploading(true);
-    setUploadError(null);
-
-    // 送信データをコンソールに出力
-    const uploadData = {
+    await startUpload({
       mid,
       name: myPhrase.name ?? '',
-      bodai: String(displayBodaiId),
+      bodaiId: displayBodaiId,
       spot,
-    };
-    console.log('[画像送信] 送信データ:', uploadData);
-
-    try {
-      // Blob URL から実際の Blob を取得
-      const response = await fetch(generatedImageUrl);
-      const imageBlob = await response.blob();
-      console.log('[画像送信] 画像サイズ:', imageBlob.size, 'bytes');
-
-      // サーバーにアップロード
-      const result = await uploadCutoutImage(imageBlob, uploadData);
-
-      if (result.success) {
-        console.log('Upload successful:', result.imageUrl);
-        // プレビューダイアログを閉じてアニメーションを開始
+      generatedImageUrl,
+      onSuccess: (url) => {
         setPreviewOpen(false);
-        setSuccessImageUrl(generatedImageUrl);
+        setSuccessImageUrl(url);
         setShowSuccessAnimation(true);
-      } else {
-        console.error('Upload failed:', result.error);
-        setUploadError(result.error || '送信に失敗しました');
-      }
-    } catch (error) {
-      console.error('Upload error:', error);
-      setUploadError('送信中にエラーが発生しました');
-    } finally {
-      setIsUploading(false);
-    }
+      },
+    });
   }, [
     generatedImageUrl,
     isUploading,
+    startUpload,
     mid,
     myPhrase.name,
     displayBodaiId,
@@ -446,33 +416,8 @@ export function Main({
       </div>
 
       <main className="relative z-10 flex flex-col items-center pt-6 pb-12 min-h-screen w-full max-w-[375px] mx-auto">
-        {/* 上部のメッセージボックス */}
-        <div className="bg-[rgba(255,244,98,0.6)] rounded-[13px] py-4 mb-6 w-[95%]">
-          <p
-            style={{ fontSize: sizeClamp(16, 18, 390, 1206) }}
-            className="text-center font-medium text-black"
-          >
-            「{currentBodai.name}の心」を育む中で、頂いた功徳を
-            <br />
-            アートスペースに送りましょう！
-          </p>
-        </div>
-
-        {/* スマートフォンと指示テキスト */}
-        <div className="flex items-center gap-3 mb-8 w-full px-4">
-          <p className="font-bold text-[18px] text-black leading-normal flex-1">
-            想いを込めて、功徳をぐるっと囲う形を描いてみましょう。あなたの功徳が、描いた形で型取られ、アートスペースに送られます！
-          </p>
-          <div className="relative w-[103px] h-[120px] shrink-0">
-            <NextImage
-              src={iconOperation}
-              alt="操作説明"
-              fill
-              sizes="103px"
-              className="object-contain"
-            />
-          </div>
-        </div>
+        {/* 上部のメッセージボックスと説明文をコンポーネント化 */}
+        <TraceHeader bodaiName={currentBodai.name} />
 
         <TraceStage
           bodai={currentBodai}
@@ -507,56 +452,16 @@ export function Main({
           onComplete={handleAnimationComplete}
         />
 
-        {/* 背景チェンジボタン */}
-        <div className="fixed bottom-4 right-4 z-50">
-          <button
-            onClick={handleBackgroundChange}
-            className="transition-transform hover:scale-105 active:scale-95 flex flex-col items-center gap-1"
-            aria-label="背景を変更"
-          >
-            <div className="w-14 h-14 rounded-full flex items-center justify-center ">
-              <NextImage
-                src={changeIcon}
-                alt=""
-                className="max-w-full max-h-full"
-              />
-            </div>
-            <span className="text-[15px] font-bold text-black">
-              背景チェンジ
-            </span>
-          </button>
-        </div>
+        {/* 背景チェンジボタンをコンポーネント化 */}
+        <BackgroundChangeButton onClick={handleBackgroundChange} />
+
         {showDebugControls && (
-          <div className="fixed bottom-4 left-4 z-50 flex flex-col items-start gap-2">
-            <button
-              onClick={() => handleGenerateImage()}
-              disabled={isGenerating}
-              className="rounded-md bg-white/90 px-3 py-2 text-sm font-bold text-black shadow disabled:opacity-50"
-            >
-              {isGenerating ? '生成中...' : 'PNG生成'}
-            </button>
-            {generatedImageUrl && (
-              <div className="flex flex-col items-start gap-2">
-                <a
-                  href={generatedImageUrl}
-                  download={`phrase-${displayBodaiId}.png`}
-                  className="rounded-md bg-white/90 px-3 py-1 text-xs font-bold text-black shadow"
-                >
-                  ダウンロード
-                </a>
-                <div className="relative h-20 w-20 overflow-hidden rounded-md border border-white/70">
-                  <NextImage
-                    src={generatedImageUrl}
-                    alt="生成プレビュー"
-                    fill
-                    sizes="80px"
-                    className="object-contain"
-                    unoptimized
-                  />
-                </div>
-              </div>
-            )}
-          </div>
+          <DebugControls
+            isGenerating={isGenerating}
+            onGenerate={() => handleGenerateImage()}
+            previewUrl={generatedImageUrl}
+            displayBodaiId={displayBodaiId}
+          />
         )}
         <SafeZoneDialogs
           warningRatio={safeZoneWarningRatio}

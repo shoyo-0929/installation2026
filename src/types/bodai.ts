@@ -6,6 +6,6 @@ export interface Bodai {
   img: StaticImageData;
   bgColor: string;
   textColor: string;
-  bgImg: StaticImageData;
+  bgImg: StaticImageData[];
   guide: StaticImageData[];
 }

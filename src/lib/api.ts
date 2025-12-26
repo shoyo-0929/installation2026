@@ -55,3 +55,82 @@ export async function fetchPhrase(
   const data = (await res.json()) as PhraseResponse;
   return { ok: true, data };
 }
+
+// ============================================================
+// 画像アップロード API
+// ============================================================
+
+/** 画像アップロード API の URL（環境変数で設定可能） */
+export const UPLOAD_API_URL =
+  process.env.NEXT_PUBLIC_UPLOAD_API_URL || '/api/upload';
+  // process.env.NEXT_PUBLIC_UPLOAD_API_URL || 'http://ar.rashinbanban.jp/pub.php';
+
+/** 画像アップロード時に送信するメタデータ */
+export type UploadMetadata = {
+  /** 会員番号（CA番号） */
+  mid: string;
+  /** 氏名 */
+  name: string;
+  /** 菩提心番号（1〜12） */
+  bodai: string;
+  /** 場所コード（中京=51など） */
+  spot: string;
+};
+
+/** 画像アップロードのレスポンス */
+export type UploadResponse = {
+  success: boolean;
+  message?: string;
+  imageUrl?: string;
+  error?: string;
+};
+
+/**
+ * 切り抜き画像をサーバーにアップロードする
+ *
+ * @param imageBlob - 切り抜き画像の Blob
+ * @param metadata - 会員情報などのメタデータ
+ * @returns アップロード結果
+ *
+ * @example
+ * const result = await uploadCutoutImage(blob, {
+ *   mid: '12345678',
+ *   name: '岡田 昇陽',
+ *   bodai: '5',
+ *   spot: '51',
+ * });
+ */
+export async function uploadCutoutImage(
+  imageBlob: Blob,
+  metadata: UploadMetadata
+): Promise<UploadResponse> {
+  const formData = new FormData();
+  formData.append('image', imageBlob, 'cutout.png');
+  formData.append('mid', metadata.mid);
+  formData.append('name', metadata.name);
+  formData.append('bodai', metadata.bodai);
+  formData.append('spot', metadata.spot);
+
+  try {
+    const response = await fetch(UPLOAD_API_URL, {
+      method: 'POST',
+      body: formData,
+    });
+
+    if (!response.ok) {
+      return {
+        success: false,
+        error: `HTTP error: ${response.status}`,
+      };
+    }
+
+    const result = (await response.json()) as UploadResponse;
+    return result;
+  } catch (error) {
+    console.error('Upload failed:', error);
+    return {
+      success: false,
+      error: error instanceof Error ? error.message : 'Unknown error',
+    };
+  }
+}

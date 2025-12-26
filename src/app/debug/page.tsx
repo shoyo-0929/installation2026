@@ -20,6 +20,8 @@ export default function DebugPage() {
     <Main
       phraseData={mockPhraseData}
       bodai={bodaiList}
+      mid="99999999"
+      spot="51"
       showDebugControls
     />
   );

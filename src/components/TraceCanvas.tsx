@@ -18,6 +18,8 @@ export type TracePoint = {
 export type TraceCanvasHandle = {
   getPoints: () => TracePoint[]
   clear: () => void
+  setPoints: (points: TracePoint[], isClosed?: boolean) => void
+  getCanvasRect: () => DOMRect | null
 }
 
 type TraceCanvasProps = {
@@ -28,6 +30,7 @@ type TraceCanvasProps = {
   glowColor?: string
   glowBlur?: number
   sparkleColor?: string
+  onTraceEnd?: (points: TracePoint[], isClosed: boolean) => void
 }
 
 const DEFAULT_BASE_SIZE = 1024
@@ -37,6 +40,7 @@ const CLOSE_SEGMENTS = 12
 const RESUME_THRESHOLD_BASE = 30
 const CLOSE_THRESHOLD_RATIO = 0.06
 const CLOSE_THRESHOLD_MAX = 60
+const MIN_CLOSE_LENGTH_RATIO = 0.2
 const MAX_PARTICLES = 110
 
 type SparkleParticle = {
@@ -61,6 +65,7 @@ export const TraceCanvas = forwardRef<TraceCanvasHandle, TraceCanvasProps>(
       glowColor = 'rgba(255,255,255,0.8)',
       glowBlur = 10,
       sparkleColor = 'rgba(255,255,255,0.95)',
+      onTraceEnd,
     },
     ref
   ) {
@@ -68,6 +73,7 @@ export const TraceCanvas = forwardRef<TraceCanvasHandle, TraceCanvasProps>(
     const strokeCanvasRef = useRef<HTMLCanvasElement | null>(null)
     const effectCanvasRef = useRef<HTMLCanvasElement | null>(null)
     const pointsRef = useRef<TracePoint[]>([])
+    const pathLengthRef = useRef(0)
     const closeCandidateIndexRef = useRef<number | null>(null)
     const particlesRef = useRef<SparkleParticle[]>([])
     const animationFrameRef = useRef<number | null>(null)
@@ -205,11 +211,14 @@ export const TraceCanvas = forwardRef<TraceCanvasHandle, TraceCanvasProps>(
       if (particles.length === 0) return
       const next: SparkleParticle[] = []
       for (const particle of particles) {
-        particle.life += deltaMs
-        if (particle.life < particle.ttl) {
-          particle.x += particle.vx * deltaMs
-          particle.y += particle.vy * deltaMs
-          next.push(particle)
+        const life = particle.life + deltaMs
+        if (life < particle.ttl) {
+          next.push({
+            ...particle,
+            life,
+            x: particle.x + particle.vx * deltaMs,
+            y: particle.y + particle.vy * deltaMs,
+          })
         }
       }
       particlesRef.current = next
@@ -310,11 +319,14 @@ export const TraceCanvas = forwardRef<TraceCanvasHandle, TraceCanvasProps>(
 
     const toBasePoint = useCallback(
       (event: PointerEvent<HTMLCanvasElement>): TracePoint | null => {
-        const canvas = effectCanvasRef.current
-        if (!canvas) return null
-        const rect = canvas.getBoundingClientRect()
-        if (!rect.width) return null
-        const scale = baseSize / rect.width
+        // containerRef を基準に座標変換（Main.tsx と同じ基準）
+        const container = containerRef.current
+        if (!container) return null
+        const rect = container.getBoundingClientRect()
+        if (!rect.width || !rect.height) return null
+        // 正方形前提で小さい方を使用
+        const size = Math.min(rect.width, rect.height)
+        const scale = baseSize / size
         const rawX = (event.clientX - rect.left) * scale
         const rawY = (event.clientY - rect.top) * scale
         const x = Math.max(0, Math.min(baseSize, rawX))
@@ -341,14 +353,17 @@ export const TraceCanvas = forwardRef<TraceCanvasHandle, TraceCanvasProps>(
 
         const distance = Math.hypot(point.x - last.x, point.y - last.y)
         if (distance >= threshold) {
+          pathLengthRef.current += distance
           points.push(point)
           const closeThreshold = Math.min(
             CLOSE_THRESHOLD_MAX,
             baseSize * CLOSE_THRESHOLD_RATIO
           )
+          const canClose =
+            pathLengthRef.current >= baseSize * MIN_CLOSE_LENGTH_RATIO
           const start = points[0]
           if (
-            closeCandidateIndexRef.current === null &&
+            canClose &&
             points.length > 3 &&
             Math.hypot(point.x - start.x, point.y - start.y) <= closeThreshold
           ) {
@@ -363,6 +378,12 @@ export const TraceCanvas = forwardRef<TraceCanvasHandle, TraceCanvasProps>(
     const finalizePath = useCallback(() => {
       let points = pointsRef.current
       if (points.length < 2) return
+      const minCloseLength = baseSize * MIN_CLOSE_LENGTH_RATIO
+      if (pathLengthRef.current < minCloseLength) {
+        closeCandidateIndexRef.current = null
+        isClosedRef.current = false
+        return
+      }
       const closeThreshold = Math.min(
         CLOSE_THRESHOLD_MAX,
         baseSize * CLOSE_THRESHOLD_RATIO
@@ -435,6 +456,7 @@ export const TraceCanvas = forwardRef<TraceCanvasHandle, TraceCanvasProps>(
 
     const resetPath = useCallback(() => {
       pointsRef.current = []
+      pathLengthRef.current = 0
       closeCandidateIndexRef.current = null
       particlesRef.current = []
       isClosedRef.current = false
@@ -472,7 +494,7 @@ export const TraceCanvas = forwardRef<TraceCanvasHandle, TraceCanvasProps>(
         appendPoint(point)
         redrawStroke()
       },
-      [appendPoint, redrawStroke, resetPath, toBasePoint]
+      [appendPoint, baseSize, redrawStroke, resetPath, toBasePoint]
     )
 
     const handlePointerMove = useCallback(
@@ -494,9 +516,10 @@ export const TraceCanvas = forwardRef<TraceCanvasHandle, TraceCanvasProps>(
         isDrawingRef.current = false
         finalizePath()
         redrawStroke()
+        onTraceEnd?.([...pointsRef.current], isClosedRef.current)
         event.currentTarget.releasePointerCapture(event.pointerId)
       },
-      [finalizePath, redrawStroke]
+      [finalizePath, onTraceEnd, redrawStroke]
     )
 
     const handlePointerCancel = useCallback(
@@ -506,9 +529,10 @@ export const TraceCanvas = forwardRef<TraceCanvasHandle, TraceCanvasProps>(
         isDrawingRef.current = false
         finalizePath()
         redrawStroke()
+        onTraceEnd?.([...pointsRef.current], isClosedRef.current)
         event.currentTarget.releasePointerCapture(event.pointerId)
       },
-      [finalizePath, redrawStroke]
+      [finalizePath, onTraceEnd, redrawStroke]
     )
 
     useImperativeHandle(
@@ -516,8 +540,30 @@ export const TraceCanvas = forwardRef<TraceCanvasHandle, TraceCanvasProps>(
       () => ({
         getPoints: () => [...pointsRef.current],
         clear: () => resetPath(),
+        setPoints: (points: TracePoint[], isClosed = true) => {
+          pointsRef.current = points
+          pathLengthRef.current = 0
+          for (let i = 1; i < points.length; i += 1) {
+            const prev = points[i - 1]
+            const current = points[i]
+            pathLengthRef.current += Math.hypot(
+              current.x - prev.x,
+              current.y - prev.y
+            )
+          }
+          closeCandidateIndexRef.current = isClosed
+            ? Math.max(0, points.length - 1)
+            : null
+          isClosedRef.current = isClosed
+          redrawStroke()
+        },
+        getCanvasRect: () => {
+          // containerRef を返す（座標変換と同じ基準）
+          const container = containerRef.current
+          return container ? container.getBoundingClientRect() : null
+        },
       }),
-      [resetPath]
+      [redrawStroke, resetPath]
     )
 
     useEffect(() => {
@@ -554,12 +600,12 @@ export const TraceCanvas = forwardRef<TraceCanvasHandle, TraceCanvasProps>(
       <div ref={containerRef} className={containerClassName}>
         <canvas
           ref={strokeCanvasRef}
-          className="absolute inset-0 z-0 w-full h-full pointer-events-none"
+          className="absolute top-0 left-0 z-0 pointer-events-none"
           aria-hidden="true"
         />
         <canvas
           ref={effectCanvasRef}
-          className="absolute inset-0 z-10 w-full h-full touch-none select-none bg-transparent"
+          className="absolute top-0 left-0 z-10 touch-none select-none bg-transparent"
           onPointerDown={handlePointerDown}
           onPointerMove={handlePointerMove}
           onPointerUp={handlePointerUp}

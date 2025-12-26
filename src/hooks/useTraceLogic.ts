@@ -1,5 +1,5 @@
 import { useState, useCallback } from 'react';
-import type { TracePoint } from '@/components/TraceCanvas';
+import type { TracePoint } from '@/components/canvas/TraceCanvas';
 import {
   type SafeZoneInfo,
   getSafeZoneDistanceRatio,

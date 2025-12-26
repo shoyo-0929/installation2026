@@ -1,5 +1,5 @@
 import type { Bodai } from '@/types/bodai';
-import type { TracePoint } from '@/components/TraceCanvas';
+import type { TracePoint } from '@/components/canvas/TraceCanvas';
 import { branchList } from '@/data/branchList';
 import { BASE_CANVAS_SIZE, TRACE_STROKE_WIDTH } from './trace-utils';
 

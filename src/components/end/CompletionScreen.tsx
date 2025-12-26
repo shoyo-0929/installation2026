@@ -3,7 +3,7 @@
 import Image from 'next/image';
 import { useRouter } from 'next/navigation';
 import { sizeClamp } from '@/lib/css';
-import { BackgroundPattern } from './BackgroundPattern';
+import { BackgroundPattern } from '@/components/ui/BackgroundPattern';
 import logo from '@/assets/img/logo.png';
 
 import mainTitle from '@/assets/img/main-title.png';
@@ -71,12 +71,7 @@ export function CompletionScreen({ onBackToTop }: CompletionScreenProps) {
 
         {/* GLAフッター */}
         <div className="mt-auto pt-8 w-[60px] mx-auto">
-          <Image
-            src={logo}
-            alt="GLA"
-            className="w-full h-auto"
-            priority
-          />
+          <Image src={logo} alt="GLA" className="w-full h-auto" priority />
         </div>
       </main>
     </div>

@@ -11,7 +11,7 @@ import { sizeClamp } from '@/lib/css';
 import { REMEMBER_TTL_DAYS } from '@/lib/storage';
 import { useLoginForm } from '@/hooks/useLoginForm';
 import { TextFieldCard } from './TextFieldCard';
-import { BackgroundPattern } from './BackgroundPattern';
+import { BackgroundPattern } from '@/components/ui/BackgroundPattern';
 import logo from '@/assets/img/logo.png';
 
 import mainTitle from '@/assets/img/main-title.png';
@@ -100,12 +100,7 @@ export function LoginForm() {
           </button>
         </form>
         <div className="mt-auto py-6 mx-auto w-16">
-          <Image
-            src={logo}
-            alt="GLA"
-            className="w-full h-auto"
-            priority
-          />
+          <Image src={logo} alt="GLA" className="w-full h-auto" priority />
         </div>
       </main>
     </div>

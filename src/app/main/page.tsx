@@ -8,7 +8,7 @@
 
 import { useEffect, useState } from 'react';
 import { useRouter, useSearchParams } from 'next/navigation';
-import { Main } from '@/components/Main';
+import { Main } from '@/components/main/Main';
 import type { PhraseResponse } from '@/lib/api';
 
 import { bodaiList } from '@/data/bodaiList';

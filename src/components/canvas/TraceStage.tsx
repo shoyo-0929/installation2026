@@ -6,11 +6,11 @@ import {
   TraceCanvas,
   type TraceCanvasHandle,
   type TracePoint,
-} from '@/components/TraceCanvas';
+} from '@/components/canvas/TraceCanvas';
 import {
   SafeZoneDebugOverlay,
   type SafeZoneDebug,
-} from '@/components/SafeZoneDebugOverlay';
+} from '@/components/canvas/SafeZoneDebugOverlay';
 import type { Bodai } from '@/types/bodai';
 
 type TraceStageProps = {

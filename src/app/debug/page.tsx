@@ -1,6 +1,6 @@
 'use client';
 
-import { Main } from '@/components/Main';
+import { Main } from '@/components/main/Main';
 import { bodaiList } from '@/data/bodaiList';
 import iconRice from '@/assets/img/icon_rice.png'; // Mock icon
 

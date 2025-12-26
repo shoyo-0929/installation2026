@@ -1,5 +1,5 @@
 import { isPointInsidePolygon, type Point } from '@/lib/geometry';
-import type { TracePoint } from '@/components/TraceCanvas';
+import type { TracePoint } from '@/components/canvas/TraceCanvas';
 
 export const BASE_CANVAS_SIZE = 1024;
 export const SAFE_ZONE_PADDING = 40;

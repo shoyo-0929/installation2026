@@ -15,17 +15,17 @@ type DialogShellProps = {
 const DialogShell = ({ title, description, actions }: DialogShellProps) => (
   <div className="fixed inset-0 z-[120] flex items-center justify-center bg-white/70 px-6 backdrop-blur-sm">
     <div className="w-full max-w-sm rounded-2xl bg-white/95 p-6 text-black shadow-xl ring-1 ring-black/10">
-      <h2 className="text-lg font-bold mb-3">{title}</h2>
+      <h2 className="text-lg text-red-500 text-center font-bold mb-3">{title}</h2>
       <p className="text-sm leading-relaxed">{description}</p>
-      <div className="mt-5 flex flex-col gap-2">
+      <div className="mt-5 flex flex-col gap-4">
         {actions.map((action) => (
           <button
             key={action.label}
             onClick={action.onClick}
             className={
               action.variant === 'primary'
-                ? 'w-full rounded-lg bg-[#1b6fd6] py-2 text-sm font-bold text-white shadow'
-                : 'w-full rounded-lg border border-[#1b6fd6] py-2 text-sm font-bold text-[#1b6fd6]'
+                ? 'w-full rounded-lg bg-red-500 py-4 text-sm font-bold text-white shadow'
+                : 'w-full rounded-lg border border-red-500 py-4 text-sm font-bold text-red-500'
             }
           >
             {action.label}

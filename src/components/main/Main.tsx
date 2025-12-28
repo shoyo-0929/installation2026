@@ -4,7 +4,6 @@ import NextImage from 'next/image';
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { type PhraseResponse } from '@/lib/api';
-import type { SafeZoneDebug } from '@/components/canvas/SafeZoneDebugOverlay';
 import { SafeZoneDialogs } from '@/components/main/SafeZoneDialogs';
 import { TraceStage } from '@/components/canvas/TraceStage';
 import { TracePreviewDialog } from '@/components/main/TracePreviewDialog';
@@ -12,23 +11,26 @@ import { SubmitSuccessAnimation } from '@/components/end/SubmitSuccessAnimation'
 import { CompletionScreen } from '@/components/end/CompletionScreen';
 import { TraceHeader } from '@/components/main/TraceHeader';
 import { BackgroundChangeButton } from '@/components/main/BackgroundChangeButton';
+import { RedoButton } from '@/components/main/RedoButton';
 import { DebugControls } from '@/components/main/DebugControls';
-import type { TraceCanvasHandle, TracePoint } from '@/components/canvas/TraceCanvas';
+import type { TraceCanvasHandle } from '@/components/canvas/TraceCanvas';
 import type { Bodai } from '@/types/bodai';
 import { branchList } from '@/data/branchList';
 import {
   BASE_CANVAS_SIZE,
   SAFE_ZONE_PADDING,
   SAFE_ZONE_WARN_RADIUS_RATIO,
-  SAFE_ZONE_RESET_RADIUS_RATIO,
   TRACE_STROKE_WIDTH,
   type SafeZoneInfo,
-  getSafeZoneCenter,
   getSafeZoneDistanceRatio,
 } from '@/lib/trace-utils';
 import { generateTraceImage } from '@/lib/image-generation';
 import { useTraceLogic } from '@/hooks/useTraceLogic';
 import { useCutoutUpload } from '@/hooks/useCutoutUpload';
+import {
+  preloadSounds,
+  playRaiseSound,
+} from '@/lib/sound';
 
 export interface AfterLoginScreenProps {
   /** 会員の投稿情報 */
@@ -48,9 +50,10 @@ export interface AfterLoginScreenProps {
  *
  * 機能:
  * - 投稿内容の表示
- * - 稲穂のアイコン表示
- * - 背景チェンジボタン
- * - 点線のトレース領域
+ * - 菩提（背景・図形）の切り替え
+ * - トレーシング機能（キャンバス）
+ * - 画像生成とアップロード
+ * - 成功アニメーションと完了画面の制御
  */
 export function Main({
   phraseData,
@@ -61,6 +64,8 @@ export function Main({
 }: AfterLoginScreenProps) {
   const router = useRouter();
   const { myPhrase } = phraseData;
+
+  // DOM要素への参照（画像生成時に使用）
   const traceRef = useRef<TraceCanvasHandle | null>(null);
   const canvasContainerRef = useRef<HTMLDivElement | null>(null);
   const textGroupRef = useRef<HTMLDivElement | null>(null);
@@ -68,37 +73,52 @@ export function Main({
   const bodyRef = useRef<HTMLParagraphElement | null>(null);
   const nameRef = useRef<HTMLDivElement | null>(null);
   const branchRef = useRef<HTMLDivElement | null>(null);
+
+  // 状態管理
   const [generatedImageUrl, setGeneratedImageUrl] = useState<string | null>(
     null
-  );
-  const [isGenerating, setIsGenerating] = useState(false);
-  const [safeZoneDebug, setSafeZoneDebug] = useState<SafeZoneDebug | null>(
-    null
-  );
+  ); // 生成された画像のURL
+  const [isGenerating, setIsGenerating] = useState(false); // 画像生成中フラグ
 
+  // 背景画像のインデックス（0開始）
   const [bgImageIndex, setBgImageIndex] = useState<number>(0);
 
   // 表示する菩提IDを管理するステート（初期値はユーザーの菩提ID）
   const [displayBodaiId, setDisplayBodaiId] = useState<number>(
     Number(myPhrase.bodai)
-  ); // 念のため型変換
+  );
 
-  // ユーザーデータが変更された場合にステートを更新
+  // 初回マウント時にランダムな背景を設定（Hydrationエラー回避）
+  useEffect(() => {
+    setBgImageIndex(Math.floor(Math.random() * 3));
+  }, []);
+
+  // ユーザーデータ（菩提ID）が変更された場合にステートを同期し、背景をランダムにリセット
   useEffect(() => {
     setDisplayBodaiId(Number(myPhrase.bodai));
-    setBgImageIndex(0); // 念のためリセット
+    setBgImageIndex(Math.floor(Math.random() * 3));
   }, [myPhrase.bodai]);
 
-  // 投稿データの bodai 番号に一致するデータを取得
-  const currentBodai = bodai.find((b) => b.id === displayBodaiId);
-  console.log(currentBodai);
+  // 音声のプリロード
+  useEffect(() => {
+    preloadSounds();
+  }, []);
 
-  // 背景チェンジボタンのハンドラ
+  // 現在表示中の菩提データ
+  const currentBodai = bodai.find((b) => b.id === displayBodaiId);
+
+  /**
+   * 背景チェンジボタンのハンドラ
+   * 現在の菩提で使用可能な背景画像を循環させる
+   */
   const handleBackgroundChange = () => {
     if (!currentBodai) return;
     setBgImageIndex((prev) => (prev + 1) % currentBodai.bgImg.length);
   };
 
+  /**
+   * 生成された画像URLを更新する（以前のURLはRevokeしてメモリ解放）
+   */
   const updateGeneratedImageUrl = useCallback((url: string) => {
     setGeneratedImageUrl((previous) => {
       if (previous) {
@@ -108,6 +128,9 @@ export function Main({
     });
   }, []);
 
+  /**
+   * 生成された画像をクリアする
+   */
   const clearGeneratedImageUrl = useCallback(() => {
     setGeneratedImageUrl((previous) => {
       if (previous) {
@@ -117,6 +140,7 @@ export function Main({
     });
   }, []);
 
+  // 投稿テキストを行ごとの配列に変換（空行削除）
   const phraseLines = useMemo(() => {
     if (!myPhrase.text1) return [];
     return myPhrase.text1
@@ -124,6 +148,10 @@ export function Main({
       .filter((line) => line.trim() !== '');
   }, [myPhrase.text1]);
 
+  /**
+   * 安全領域（Safe Zone）の情報をDOMから取得する関数
+   * テキストグループの矩形をもとに判定基準を作成
+   */
   const getSafeZoneInfo = useCallback((): SafeZoneInfo | null => {
     const container = canvasContainerRef.current;
     const textGroup = textGroupRef.current;
@@ -136,6 +164,7 @@ export function Main({
     const containerSize = Math.min(containerRect.width, containerRect.height);
     const scale = BASE_CANVAS_SIZE / containerSize;
 
+    // 画面上の Rect を基準座標系に変換
     const toBaseRect = (rect: DOMRect) => ({
       x: (rect.left - containerRect.left) * scale,
       y: (rect.top - containerRect.top) * scale,
@@ -165,46 +194,26 @@ export function Main({
     };
   }, []);
 
+  // トレーシングロジックのカスタムフック
   const {
-    safeZoneWarningRatio,
+    safeZoneWarningRatio, // 警告表示用の距離比率（null以外なら警告中）
     setSafeZoneWarningRatio,
-    safeZoneResetOpen,
+    safeZoneResetOpen, // リセット確認ダイアログの開閉
     setSafeZoneResetOpen,
-    safeZoneUnclosedOpen,
+    safeZoneUnclosedOpen, // 閉じていない警告ダイアログの開閉
     setSafeZoneUnclosedOpen,
-    traceReady,
+    traceReady, // トレース完了状態
     setTraceReady,
-    previewOpen,
+    previewOpen, // プレビュー画面の開閉
     setPreviewOpen,
-    handleTraceEnd,
-    resetTraceState,
+    handleTraceEnd, // トレース終了時の処理（TraceCanvasに渡す）
+    resetTraceState, // 状態のリセット
   } = useTraceLogic({
     getSafeZoneInfo,
     resetGeneratedImage: clearGeneratedImageUrl,
   });
 
-  const updateSafeZoneDebug = useCallback(() => {
-    const safeZoneInfo = getSafeZoneInfo();
-    if (!safeZoneInfo) {
-      setSafeZoneDebug(null);
-      return;
-    }
-    const radius =
-      Math.min(safeZoneInfo.safeZoneWidth, safeZoneInfo.safeZoneHeight) / 2;
-    if (!radius || !safeZoneInfo.scale) {
-      setSafeZoneDebug(null);
-      return;
-    }
-    const { x: centerX, y: centerY } = getSafeZoneCenter(safeZoneInfo);
-    const toView = (value: number) => value / safeZoneInfo.scale;
-    setSafeZoneDebug({
-      centerX: toView(centerX),
-      centerY: toView(centerY),
-      warnRadius: toView(radius * SAFE_ZONE_WARN_RADIUS_RATIO),
-      resetRadius: toView(radius * SAFE_ZONE_RESET_RADIUS_RATIO),
-    });
-  }, [getSafeZoneInfo]);
-
+  // 生成された画像のクリーンアップ
   useEffect(() => {
     return () => {
       if (generatedImageUrl) {
@@ -213,24 +222,16 @@ export function Main({
     };
   }, [generatedImageUrl]);
 
-  useEffect(() => {
-    updateSafeZoneDebug();
-    const container = canvasContainerRef.current;
-    const textGroup = textGroupRef.current;
-    if (!container || !textGroup) return;
-    const observer = new ResizeObserver(() => {
-      updateSafeZoneDebug();
-    });
-    observer.observe(container);
-    observer.observe(textGroup);
-    return () => observer.disconnect();
-  }, [updateSafeZoneDebug]);
-
+  // トレースのやり直し処理
   const handleRestartTrace = useCallback(() => {
     traceRef.current?.clear();
     resetTraceState();
   }, [resetTraceState]);
 
+  /**
+   * 画像生成処理
+   * DOM要素をCanvasに描画し、合成画像を作成する
+   */
   const handleGenerateImage = useCallback(
     async (options?: { allowUnsafe?: boolean }) => {
       const allowUnsafe = options?.allowUnsafe ?? false;
@@ -242,13 +243,14 @@ export function Main({
       try {
         const points = traceRef.current?.getPoints() ?? [];
 
-        // 再検証（安全のため、および手動実行時のため）
+        // allowUnsafeでない場合、再度安全領域チェックを行う（手動実行時など）
         if (!allowUnsafe) {
           const distanceRatio = getSafeZoneDistanceRatio(points, safeZoneInfo);
           if (
             distanceRatio !== null &&
             distanceRatio <= SAFE_ZONE_WARN_RADIUS_RATIO
           ) {
+            // 安全領域違反がある場合、警告を表示して生成中断
             setSafeZoneWarningRatio(distanceRatio);
             setSafeZoneUnclosedOpen(false);
             setSafeZoneResetOpen(false);
@@ -259,6 +261,7 @@ export function Main({
 
         setIsGenerating(true);
 
+        // 画像生成ユーティリティ呼び出し
         const url = await generateTraceImage({
           currentBodai,
           bgImageIndex,
@@ -296,6 +299,7 @@ export function Main({
     ]
   );
 
+  // トレース完了時などにプレビューを表示し、画像を生成するエフェクト
   useEffect(() => {
     if (
       !traceReady ||
@@ -321,18 +325,18 @@ export function Main({
     setPreviewOpen,
   ]);
 
+  // 警告を無視して続行する場合のハンドラ
   const handleContinueUnsafe = useCallback(() => {
     setSafeZoneWarningRatio(null);
-    setTraceReady(false);
-    setPreviewOpen(false);
+    setTraceReady(true); // trueにしてプレビューを表示
     handleGenerateImage({ allowUnsafe: true });
   }, [
     handleGenerateImage,
     setSafeZoneWarningRatio,
     setTraceReady,
-    setPreviewOpen,
   ]);
 
+  // リセット確認後の処理
   const handleConfirmReset = useCallback(() => {
     setSafeZoneResetOpen(false);
     handleRestartTrace();
@@ -342,9 +346,13 @@ export function Main({
   const [successImageUrl, setSuccessImageUrl] = useState<string | null>(null);
   const [showCompletionScreen, setShowCompletionScreen] = useState(false);
 
-  // useCutoutUpload フックを使用
+  // 画像アップロードフック
   const { isUploading, uploadError, startUpload } = useCutoutUpload();
 
+  /**
+   * 送信確認ハンドラ
+   * 画像をアップロードし、成功したらアニメーションを表示
+   */
   const handleConfirmSubmit = useCallback(async () => {
     if (!generatedImageUrl || isUploading) return;
 
@@ -355,9 +363,10 @@ export function Main({
       spot,
       generatedImageUrl,
       onSuccess: (url) => {
-        setPreviewOpen(false);
-        setSuccessImageUrl(url);
-        setShowSuccessAnimation(true);
+        setPreviewOpen(false); // プレビューを閉じて
+        setSuccessImageUrl(url); // まだ画像は保持
+        setShowSuccessAnimation(true); // 成功アニメーション開始
+        playRaiseSound(); // 上に上がるアニメーションの効果音
       },
     });
   }, [
@@ -371,29 +380,30 @@ export function Main({
     setPreviewOpen,
   ]);
 
+  // 成功アニメーション完了後の処理
   const handleAnimationComplete = useCallback(() => {
     setShowSuccessAnimation(false);
     setSuccessImageUrl(null);
-    setShowCompletionScreen(true);
+    setShowCompletionScreen(true); // 完了画面へ遷移
   }, []);
 
+  // トップに戻る処理（セッションクリア）
   const handleBackToTop = useCallback(() => {
-    // セッションをクリアしてトップへ戻る
     sessionStorage.removeItem('installation2026.phrase');
     sessionStorage.removeItem('installation2026.mid');
     router.push('/');
   }, [router]);
 
-  // データが見つからない場合のフォールバック（通常はあり得ないが安全のため）
+  // データが見つからない場合のフォールバック
   if (!currentBodai) {
     return (
-      <div className="min-h-screen flex items-center justify-center bg-gray-100">
+      <div className="min-h-screen flex items-center justify-center bg-black">
         <p>データの読み込みに失敗しました。</p>
       </div>
     );
   }
 
-  // 完了画面を表示
+  // 完了画面の表示
   if (showCompletionScreen) {
     return <CompletionScreen onBackToTop={handleBackToTop} />;
   }
@@ -402,26 +412,24 @@ export function Main({
     <div
       className={`relative min-h-screen ${currentBodai.bgColor} overflow-hidden transition-colors duration-500`}
     >
-      {/* 背景画像 */}
-      <div className="absolute inset-0 z-0">
-        <NextImage
-          key={`${currentBodai.id}-${bgImageIndex}`}
-          src={currentBodai.bgImg[bgImageIndex]}
-          alt=""
-          fill
-          sizes="100vw"
-          className="object-cover opacity-100"
-          priority
-        />
-      </div>
+      <main className="relative z-10 flex flex-col items-center justify-center pt-6 pb-12 min-h-screen w-full max-w-[375px] mx-auto">
+        {/* 左上の戻るボタン */}
+        <button
+          onClick={handleBackToTop}
+          className="absolute top-2 left-2 px-2 py-1 text-sm text-gray-600 hover:text-gray-900 font-semibold transition-colors"
+          aria-label="トップに戻る"
+        >
+          ← 戻る
+        </button>
 
-      <main className="relative z-10 flex flex-col items-center pt-6 pb-12 min-h-screen w-full max-w-[375px] mx-auto">
-        {/* 上部のメッセージボックスと説明文をコンポーネント化 */}
-        <TraceHeader bodaiName={currentBodai.name} />
+        {/* 上部のメッセージボックスと説明文 */}
+        <TraceHeader />
 
+        {/* トレースキャンバスを含むメインステージ */}
         <TraceStage
           bodai={currentBodai}
           imageIndex={bgImageIndex}
+          bgImage={currentBodai.bgImg[bgImageIndex]}
           phraseLines={phraseLines}
           name={myPhrase.name ?? ''}
           branchName={branchList[Number(myPhrase.branch)]}
@@ -433,10 +441,12 @@ export function Main({
           nameRef={nameRef}
           branchRef={branchRef}
           traceRef={traceRef}
-          safeZoneDebug={safeZoneDebug}
+          safeZoneDebug={null}
           onTraceEnd={handleTraceEnd}
           strokeWidth={TRACE_STROKE_WIDTH}
         />
+
+        {/* プレビューダイアログ */}
         <TracePreviewDialog
           open={previewOpen}
           previewUrl={generatedImageUrl}
@@ -446,15 +456,23 @@ export function Main({
           onConfirm={handleConfirmSubmit}
           onRedo={handleRestartTrace}
         />
+
+        {/* 送信成功アニメーション */}
         <SubmitSuccessAnimation
           open={showSuccessAnimation}
           imageUrl={successImageUrl}
           onComplete={handleAnimationComplete}
         />
 
-        {/* 背景チェンジボタンをコンポーネント化 */}
-        <BackgroundChangeButton onClick={handleBackgroundChange} />
+        {/* 下部固定ボタンコンテナ（背景チェンジ・やり直す） */}
+        <div className="fixed bottom-0 left-0 right-0 z-50 flex justify-center pointer-events-none">
+          <div className="w-full max-w-[375px] flex justify-between px-6 pb-4 pointer-events-auto">
+            <RedoButton onClick={handleRestartTrace} />
+            <BackgroundChangeButton onClick={handleBackgroundChange} />
+          </div>
+        </div>
 
+        {/* デバッグコントロール（必要な場合） */}
         {showDebugControls && (
           <DebugControls
             isGenerating={isGenerating}
@@ -463,6 +481,8 @@ export function Main({
             displayBodaiId={displayBodaiId}
           />
         )}
+
+        {/* 各種警告・確認ダイアログ */}
         <SafeZoneDialogs
           warningRatio={safeZoneWarningRatio}
           resetOpen={safeZoneResetOpen}

@@ -23,10 +23,6 @@ export function CompletionScreen({ onBackToTop }: CompletionScreenProps) {
     }
   };
 
-  const handleViewOthers = () => {
-    // リンク先は未定のためブランク
-  };
-
   return (
     <div className="relative min-h-screen bg-[#fff462] overflow-hidden">
       {/* 背景のクロスパターン */}
@@ -58,14 +54,6 @@ export function CompletionScreen({ onBackToTop }: CompletionScreenProps) {
             className="w-full bg-[#2d9cdb] text-white font-medium py-4 rounded-full hover:bg-[#2589c5] transition-colors"
           >
             トップに戻る
-          </button>
-
-          {/* 他の人の功徳を送るボタン（オレンジ枠） */}
-          <button
-            onClick={handleViewOthers}
-            className="w-full bg-white border-2 border-[#ef7314] text-[#ef7314] font-medium py-4 rounded-full hover:bg-[#fff8e6] transition-colors"
-          >
-            他の人の功徳を送る
           </button>
         </div>
 

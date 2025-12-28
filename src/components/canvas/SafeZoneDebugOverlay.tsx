@@ -1,21 +1,28 @@
-'use client'
+'use client';
 
 export type SafeZoneDebug = {
-  centerX: number
-  centerY: number
-  warnRadius: number
-  resetRadius: number
-}
+  centerX: number;
+  centerY: number;
+  warnRadius: number;
+  resetRadius: number;
+};
 
 type SafeZoneDebugOverlayProps = {
-  debug: SafeZoneDebug | null
-}
+  debug: SafeZoneDebug | null;
+};
 
+/**
+ * 安全領域のデバッグ用オーバーレイ
+ *
+ * 警告エリア（黄色）とリセットエリア（赤色）の円を表示する
+ * 本番運用では基本的に使用しない（デバッグフラグで制御）
+ */
 export function SafeZoneDebugOverlay({ debug }: SafeZoneDebugOverlayProps) {
-  if (!debug) return null
+  if (!debug) return null;
 
   return (
     <div className="absolute inset-0 z-20 pointer-events-none">
+      {/* 警告ボーダー（黄色） */}
       <div
         className="absolute rounded-full border-2 border-dashed"
         style={{
@@ -26,6 +33,7 @@ export function SafeZoneDebugOverlay({ debug }: SafeZoneDebugOverlayProps) {
           borderColor: 'rgba(255, 198, 56, 0.9)',
         }}
       />
+      {/* リセットボーダー（赤色） */}
       <div
         className="absolute rounded-full border-2"
         style={{
@@ -37,5 +45,5 @@ export function SafeZoneDebugOverlay({ debug }: SafeZoneDebugOverlayProps) {
         }}
       />
     </div>
-  )
+  );
 }

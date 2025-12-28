@@ -7,6 +7,7 @@
 'use client';
 
 import Image from 'next/image';
+import { useSearchParams } from 'next/navigation';
 import { sizeClamp } from '@/lib/css';
 import { REMEMBER_TTL_DAYS } from '@/lib/storage';
 import { useLoginForm } from '@/hooks/useLoginForm';
@@ -24,6 +25,7 @@ import mainTitle from '@/assets/img/main-title.png';
  * - 送信ボタン
  */
 export function LoginForm() {
+  const searchParams = useSearchParams();
   const {
     memberId,
     birthDate,
@@ -35,7 +37,7 @@ export function LoginForm() {
     handleBirthDateChange,
     handleRememberMeChange,
     handleSubmit,
-  } = useLoginForm();
+  } = useLoginForm(searchParams);
 
   return (
     <div className="relative min-h-screen bg-[#fff462] overflow-hidden">

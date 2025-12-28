@@ -1,18 +1,23 @@
-import type { Metadata } from "next";
-import { Noto_Sans_JP } from "next/font/google";
-import "./globals.css";
+import type { Metadata } from 'next';
+import { Noto_Sans_JP } from 'next/font/google';
+import './globals.css';
 
+// Google Fontsの読み込み（サブセット化して軽量化）
 const notoSansJP = Noto_Sans_JP({
-  variable: "--font-noto-sans-jp",
-  subsets: ["latin"],
-  weight: ["400", "500", "700"],
+  variable: '--font-noto-sans-jp',
+  subsets: ['latin'],
+  weight: ['400', '500', '700'],
 });
 
 export const metadata: Metadata = {
-  title: "心の光を見つける 12の物語 インスタレーション",
-  description: "GLA インスタレーション 2026",
+  title: '心の光を見つける 12の物語 インスタレーション',
+  description: 'GLA インスタレーション 2026',
 };
 
+/**
+ * ルートレイアウトコンポーネント
+ * アプリケーション全体の共通レイアウトを定義（フォント、メタデータ、CSSなど）
+ */
 export default function RootLayout({
   children,
 }: Readonly<{
@@ -20,9 +25,7 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ja">
-      <body className={`${notoSansJP.variable} antialiased`}>
-        {children}
-      </body>
+      <body className={`${notoSansJP.variable} antialiased`}>{children}</body>
     </html>
   );
 }

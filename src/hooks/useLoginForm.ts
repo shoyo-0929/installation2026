@@ -10,6 +10,7 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { fetchPhrase } from '@/lib/api';
 import { getPreferredLang } from '@/lib/lang';
+import { playButtonSound } from '@/lib/sound';
 import {
   clearRememberedCredentials,
   loadRememberedCredentials,
@@ -22,7 +23,7 @@ import { is8DigitNumber } from '@/lib/validators';
  *
  * @returns フォームの状態と各種ハンドラ
  */
-export function useLoginForm() {
+export function useLoginForm(searchParams: URLSearchParams | null) {
   const router = useRouter();
 
   // ----- フォームの状態 -----
@@ -104,6 +105,7 @@ export function useLoginForm() {
     submitAbortRef.current = abortController;
 
     // ----- 送信開始 -----
+    playButtonSound();
     setIsSubmitting(true);
     setBirthDateError(null);
     setMemberIdError(null);
@@ -141,12 +143,19 @@ export function useLoginForm() {
         saveRememberedCredentials(mid, birth);
       }
 
-      // ログイン成功後の画面に遷移
-      router.push('/main');
+      // ログイン成功後の画面に遷移（クエリパラメータを引き継ぐ）
+      const queryString = searchParams?.toString();
+      router.push(queryString ? `/main?${queryString}` : '/main');
     } catch (err) {
       // AbortError は重複送信防止で中断しただけなので無視
       if ((err as { name?: string } | null)?.name !== 'AbortError') {
-        setBirthDateError('通信に失敗しました。時間をおいて再度お試しください。');
+        // ブラウザのネイティブエラーメッセージを日本語に変換
+        const error = err as Error | null;
+        if (error?.message === 'Failed to fetch') {
+          setBirthDateError('サーバーに接続できませんでした。ネットワーク接続を確認してください。');
+        } else {
+          setBirthDateError('通信に失敗しました。時間をおいて再度お試しください。');
+        }
       }
     } finally {
       setIsSubmitting(false);

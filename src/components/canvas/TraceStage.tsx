@@ -1,12 +1,12 @@
 'use client';
 
-import NextImage from 'next/image';
+import NextImage, { type StaticImageData } from 'next/image';
 import React from 'react';
 import {
   TraceCanvas,
   type TraceCanvasHandle,
-  type TracePoint,
 } from '@/components/canvas/TraceCanvas';
+import { type TracePoint } from '@/lib/trace-utils';
 import {
   SafeZoneDebugOverlay,
   type SafeZoneDebug,
@@ -19,6 +19,7 @@ type TraceStageProps = {
   name: string;
   branchName?: string;
   imageIndex?: number;
+  bgImage?: StaticImageData;
   baseSize: number;
   strokeWidth?: number;
   canvasContainerRef: React.RefObject<HTMLDivElement | null>;
@@ -32,12 +33,23 @@ type TraceStageProps = {
   onTraceEnd: (points: TracePoint[], isClosed: boolean) => void;
 };
 
+/**
+ * トレース（なぞり書き）を行うメインステージコンポーネント
+ *
+ * 構造:
+ * - レイヤー1 (最背面): ガイド画像（線画）
+ * - レイヤー2: トレーシングCanvas（描画エリア）
+ * - レイヤー3: 安全領域デバッグ表示（開発時のみ）
+ * - レイヤー4: 中央のテキストコンテンツ（投稿内容）
+ * - レイヤー5 (最前面): 四隅の装飾フレーム
+ */
 export function TraceStage({
   bodai,
   phraseLines,
   name,
   branchName,
   imageIndex = 0,
+  bgImage,
   baseSize,
   strokeWidth = 8,
   canvasContainerRef,
@@ -55,8 +67,24 @@ export function TraceStage({
       ref={canvasContainerRef}
       className="relative w-full aspect-square flex mb-16 items-center justify-center"
     >
+      {/* 背景画像 */}
+      {bgImage && (
+        <div className="absolute inset-0 z-0">
+          <NextImage
+            src={bgImage}
+            alt=""
+            fill
+            sizes="100%"
+            className="object-cover"
+            priority
+          />
+        </div>
+      )}
+
+      {/* ガイド画像（なぞる対象の線画） */}
       {bodai.guide && bodai.guide[imageIndex] && (
         <div className="absolute inset-0 flex items-center justify-center pointer-events-none">
+          {/* コンテナサイズを固定して、SVGのアスペクト比維持と配置ズレを防ぐための方策 */}
           <div className="relative w-[340px] h-[340px]">
             <NextImage
               src={bodai.guide[imageIndex]}
@@ -69,6 +97,7 @@ export function TraceStage({
         </div>
       )}
 
+      {/* 描画用キャンバス */}
       <TraceCanvas
         ref={traceRef}
         className="absolute inset-0 z-10"
@@ -80,10 +109,13 @@ export function TraceStage({
         onTraceEnd={onTraceEnd}
       />
 
+      {/* 安全領域のデバッグ表示（通常は非表示） */}
       <SafeZoneDebugOverlay debug={safeZoneDebug} />
 
+      {/* 中央のテキストコンテンツ（なぞり書きの対象物＝囲む対象） */}
       <div className="relative z-20 flex flex-col items-center justify-center p-6 w-full h-full pointer-events-none">
         <div ref={textGroupRef} className="flex flex-col items-center">
+          {/* アイコン（稲穂など） */}
           <div ref={iconRef} className="relative w-[60px] h-[60px] mb-4">
             <NextImage
               src={bodai.img}
@@ -95,6 +127,7 @@ export function TraceStage({
           </div>
 
           <div className="flex flex-col items-center">
+            {/* 投稿本文 */}
             <div className="text-center mb-3 w-full max-w-[240px]">
               <p
                 ref={bodyRef}
@@ -109,6 +142,7 @@ export function TraceStage({
               </p>
             </div>
 
+            {/* 氏名・支部名 */}
             <div className="text-[#262626] font-bold text-center">
               <div ref={nameRef} className="text-[18px] mb-1">
                 {name}
@@ -121,17 +155,6 @@ export function TraceStage({
             </div>
           </div>
         </div>
-      </div>
-
-      <div className="absolute inset-0 z-30 pointer-events-none">
-        <div className="absolute top-0 left-0 w-[81px] h-1 bg-[#ef7314]" />
-        <div className="absolute top-0 left-0 w-1 h-[81px] bg-[#ef7314]" />
-        <div className="absolute top-0 right-0 w-[81px] h-1 bg-[#ef7314]" />
-        <div className="absolute top-0 right-0 w-1 h-[81px] bg-[#ef7314]" />
-        <div className="absolute bottom-0 left-0 w-[81px] h-1 bg-[#ef7314]" />
-        <div className="absolute bottom-0 left-0 w-1 h-[81px] bg-[#ef7314]" />
-        <div className="absolute bottom-0 right-0 w-[81px] h-1 bg-[#ef7314]" />
-        <div className="absolute bottom-0 right-0 w-1 h-[81px] bg-[#ef7314]" />
       </div>
     </div>
   );

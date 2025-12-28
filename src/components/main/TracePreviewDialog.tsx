@@ -55,18 +55,18 @@ export function TracePreviewDialog({
             {uploadError}
           </div>
         )}
-        <div className="mt-5 flex flex-col gap-2">
+        <div className="mt-5 flex flex-col gap-4">
           <button
             onClick={onConfirm}
             disabled={isDisabled}
-            className="w-full rounded-lg bg-[#1b6fd6] py-2 text-sm font-bold text-white shadow disabled:opacity-60"
+            className="w-full rounded-lg bg-[#1b6fd6] py-4 text-sm font-bold text-white shadow disabled:opacity-60"
           >
             {isUploading ? '送信中...' : 'OK'}
           </button>
           <button
             onClick={onRedo}
             disabled={isUploading}
-            className="w-full rounded-lg border border-[#1b6fd6] py-2 text-sm font-bold text-[#1b6fd6] disabled:opacity-60"
+            className="w-full rounded-lg border border-[#1b6fd6] py-4 text-sm font-bold text-[#1b6fd6] disabled:opacity-60"
           >
             やり直す
           </button>

@@ -63,7 +63,7 @@ export async function fetchPhrase(
 /** 画像アップロード API の URL（環境変数で設定可能） */
 export const UPLOAD_API_URL =
   process.env.NEXT_PUBLIC_UPLOAD_API_URL || '/api/upload';
-  // process.env.NEXT_PUBLIC_UPLOAD_API_URL || 'http://ar.rashinbanban.jp/pub.php';
+  // process.env.NEXT_PUBLIC_UPLOAD_API_URL || 'https://rashinbanban.jp/2026/api/pub.php';
 
 /** 画像アップロード時に送信するメタデータ */
 export type UploadMetadata = {
@@ -120,17 +120,30 @@ export async function uploadCutoutImage(
     if (!response.ok) {
       return {
         success: false,
-        error: `HTTP error: ${response.status}`,
+        error: `サーバーエラーが発生しました（${response.status}）`,
       };
     }
 
     const result = (await response.json()) as UploadResponse;
     return result;
   } catch (error) {
-    console.error('Upload failed:', error);
+    console.error('アップロードに失敗しました:', error);
+    // ブラウザのネイティブエラーメッセージを日本語に変換
+    let errorMessage = '不明なエラーが発生しました';
+    if (error instanceof Error) {
+      if (error.message === 'Failed to fetch') {
+        errorMessage = 'サーバーに接続できませんでした。ネットワーク接続を確認してください。';
+      } else if (error.message.includes('NetworkError')) {
+        errorMessage = 'ネットワークエラーが発生しました。';
+      } else if (error.message.includes('timeout')) {
+        errorMessage = '接続がタイムアウトしました。';
+      } else {
+        errorMessage = error.message;
+      }
+    }
     return {
       success: false,
-      error: error instanceof Error ? error.message : 'Unknown error',
+      error: errorMessage,
     };
   }
 }

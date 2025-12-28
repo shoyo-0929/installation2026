@@ -6,11 +6,13 @@
  */
 'use client';
 
+import { useEffect } from 'react';
 import Image from 'next/image';
 import { useSearchParams } from 'next/navigation';
 import { sizeClamp } from '@/lib/css';
 import { REMEMBER_TTL_DAYS } from '@/lib/storage';
 import { useLoginForm } from '@/hooks/useLoginForm';
+import { preloadSounds } from '@/lib/sound';
 import { TextFieldCard } from './TextFieldCard';
 import { BackgroundPattern } from '@/components/ui/BackgroundPattern';
 import logo from '@/assets/img/logo.png';
@@ -26,6 +28,9 @@ import mainTitle from '@/assets/img/main-title.png';
  */
 export function LoginForm() {
   const searchParams = useSearchParams();
+  useEffect(() => {
+    preloadSounds();
+  }, []);
   const {
     memberId,
     birthDate,

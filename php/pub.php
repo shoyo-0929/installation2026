@@ -1,15 +1,21 @@
 <?php
 /**
- * 画像アップロードプロキシ
+ * 画像アップロード中継サーバー
  *
- * クライアント(HTTPS) → このプロキシ → ar.rashinbanban.jp(HTTP)
- * Mixed Contentエラーを回避するためのプロキシスクリプト
+ * 1. フロントから画像を受け取って保存
+ * 2. 画像のURLを生成
+ * 3. ar.rashinbanban.jp/pub.php にURLとメタデータを送信
  *
  * PHP 5.3+ 互換
  */
+// デバッグ用: リクエスト到達確認ログ
+file_put_contents('/tmp/pub_debug.log', date('Y-m-d H:i:s') . " Request received: " . $_SERVER['REQUEST_METHOD'] . "\n", FILE_APPEND);
 
-// エラー表示を抑制（本番環境向け）
-error_reporting(0);
+// エラー設定（JSONレスポンスを壊さないように表示は抑止し、ログへ出力）
+error_reporting(E_ALL);
+ini_set('display_errors', 0);
+ini_set('log_errors', 1);
+ini_set('error_log', '/tmp/pub_error.log');
 
 // ヘッダー設定
 header('Content-Type: application/json; charset=utf-8');
@@ -30,8 +36,15 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
     exit;
 }
 
-// 転送先URL
-$targetUrl = 'http://ar.rashinbanban.jp/pub.php';
+// 設定
+$uploadDir = __DIR__ . '/uploads/';  // 画像保存ディレクトリ
+$baseUrl = 'https://rashinbanban.jp/2026/installation/api/uploads/';  // 公開URL
+$targetUrl = 'http://ar.rashinbanban.jp/pub.php';  // 転送先
+
+// アップロードディレクトリがなければ作成
+if (!is_dir($uploadDir)) {
+    mkdir($uploadDir, 0755, true);
+}
 
 // cURLが有効か確認
 if (!function_exists('curl_init')) {
@@ -40,57 +53,92 @@ if (!function_exists('curl_init')) {
     exit;
 }
 
-// POSTデータを準備
-$postData = array();
-foreach ($_POST as $key => $value) {
-    $postData[$key] = $value;
+// POSTデータを取得
+$mid = isset($_POST['mid']) ? $_POST['mid'] : '';
+$name = isset($_POST['name']) ? $_POST['name'] : '';
+$bodai = isset($_POST['bodai']) ? $_POST['bodai'] : '';
+$spot = isset($_POST['spot']) ? $_POST['spot'] : '';
+
+// 必須パラメータチェック（"0" を空扱いしない）
+if ($mid === '' || $bodai === '' || $spot === '') {
+    header('HTTP/1.1 400 Bad Request');
+    echo json_encode(array('success' => false, 'error' => 'Missing required parameters (mid, bodai, spot)'));
+    exit;
 }
 
-// ファイルがあれば追加（PHP 5.5+ と 5.3/5.4 の両方に対応）
+// 画像を保存
+$imageUrl = '';
 if (isset($_FILES['image']) && $_FILES['image']['error'] === UPLOAD_ERR_OK) {
-    if (class_exists('CURLFile')) {
-        // PHP 5.5+
-        $postData['image'] = new CURLFile(
-            $_FILES['image']['tmp_name'],
-            $_FILES['image']['type'] ? $_FILES['image']['type'] : 'image/png',
-            $_FILES['image']['name'] ? $_FILES['image']['name'] : 'cutout.png'
-        );
+    // ファイル名を生成（mid_タイムスタンプ.png）
+    $filename = $mid . '_' . time() . '.png';
+    $filepath = $uploadDir . $filename;
+
+    // 画像を保存
+    if (move_uploaded_file($_FILES['image']['tmp_name'], $filepath)) {
+        $imageUrl = $baseUrl . $filename;
+        file_put_contents('/tmp/pub_debug.log', date('Y-m-d H:i:s') . " Image saved: " . $filepath . "\n", FILE_APPEND);
     } else {
-        // PHP 5.3/5.4 (deprecated @ prefix)
-        $postData['image'] = '@' . $_FILES['image']['tmp_name']
-            . ';type=' . ($_FILES['image']['type'] ? $_FILES['image']['type'] : 'image/png')
-            . ';filename=' . ($_FILES['image']['name'] ? $_FILES['image']['name'] : 'cutout.png');
+        header('HTTP/1.1 500 Internal Server Error');
+        echo json_encode(array('success' => false, 'error' => 'Failed to save image'));
+        exit;
     }
+} else {
+    header('HTTP/1.1 400 Bad Request');
+    $errorCode = isset($_FILES['image']) ? $_FILES['image']['error'] : 'no file';
+    echo json_encode(array('success' => false, 'error' => 'Image file is required. Error: ' . $errorCode));
+    exit;
 }
+
+// ar.rashinbanban.jp/pub.php に送信するデータ
+$postData = array(
+    'mid' => $mid,
+    'name' => $name,
+    'bodai' => $bodai,
+    'spot' => $spot,
+    'url' => $imageUrl,
+    'time' => date('Y/m/d H:i:s')
+);
+
+file_put_contents(
+    '/tmp/pub_debug.log',
+    date('Y-m-d H:i:s') . " Sending to ar: " . json_encode($postData, JSON_UNESCAPED_UNICODE) . "\n",
+    FILE_APPEND
+);
 
 // cURLで転送
 $ch = curl_init();
 curl_setopt($ch, CURLOPT_URL, $targetUrl);
 curl_setopt($ch, CURLOPT_POST, true);
-curl_setopt($ch, CURLOPT_POSTFIELDS, $postData);
+curl_setopt($ch, CURLOPT_POSTFIELDS, http_build_query($postData));
 curl_setopt($ch, CURLOPT_RETURNTRANSFER, true);
 curl_setopt($ch, CURLOPT_TIMEOUT, 60);
 curl_setopt($ch, CURLOPT_FOLLOWLOCATION, true);
-
-// PHP 5.5以下では SAFE_UPLOAD を無効にする必要がある場合
-if (version_compare(PHP_VERSION, '5.5.0', '>=') && version_compare(PHP_VERSION, '5.6.0', '<')) {
-    curl_setopt($ch, CURLOPT_SAFE_UPLOAD, false);
-}
+curl_setopt($ch, CURLOPT_HTTPHEADER, array('Content-Type: application/x-www-form-urlencoded'));
 
 $response = curl_exec($ch);
 $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 $error = curl_error($ch);
 curl_close($ch);
 
+file_put_contents('/tmp/pub_debug.log', date('Y-m-d H:i:s') . " Response: " . $httpCode . " - " . $response . "\n", FILE_APPEND);
+
 // エラーハンドリング
 if ($error) {
     header('HTTP/1.1 500 Internal Server Error');
-    echo json_encode(array('success' => false, 'error' => 'Connection failed: ' . $error));
+    echo json_encode(array('success' => false, 'error' => 'Connection failed: ' . $error, 'imageUrl' => $imageUrl));
     exit;
 }
 
-// レスポンスをそのまま返す
+// レスポンスをそのまま返す（画像URLも追加）
 if ($httpCode >= 400) {
     header('HTTP/1.1 ' . $httpCode);
+    echo json_encode(array('success' => false, 'error' => 'Remote server error: ' . $httpCode, 'imageUrl' => $imageUrl));
+} else {
+    // 成功時は画像URLも返す
+    $result = json_decode($response, true);
+    if ($result === null) {
+        $result = array('success' => true);
+    }
+    $result['imageUrl'] = $imageUrl;
+    echo json_encode($result);
 }
-echo $response;

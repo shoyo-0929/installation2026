@@ -28,7 +28,7 @@ export function TracePreviewDialog({
   return (
     <div className="fixed inset-0 z-[130] flex items-center justify-center bg-white/70 px-6 backdrop-blur-sm">
       <div className="w-full max-w-sm rounded-2xl bg-white/95 p-6 text-black shadow-xl ring-1 ring-black/10">
-        <h2 className="text-lg font-bold mb-3 text-center">画像が完成しました！</h2>
+        <h2 className="text-lg font-bold mb-3 text-center">功徳が型取られました！</h2>
         <p className="text-sm leading-relaxed text-center">
           この形で送信してよろしいですか？
         </p>

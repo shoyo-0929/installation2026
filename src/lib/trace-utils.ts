@@ -9,11 +9,11 @@ export interface TracePoint {
 /** 基準となるキャンバスサイズ（座標計算の正規化に使用） */
 export const BASE_CANVAS_SIZE = 1024;
 /** 安全領域の内側パディング */
-export const SAFE_ZONE_PADDING = 40;
-/** 安全領域警告を出す距離の比率（0.9 = 90%以内ならOK、それより近いと警告） */
-export const SAFE_ZONE_WARN_RADIUS_RATIO = 0.9;
-/** 強制リセットを促す距離の比率（0.7 = 70%より近い場合） */
-export const SAFE_ZONE_RESET_RADIUS_RATIO = 0.7;
+export const SAFE_ZONE_PADDING = 30;
+/** 安全領域警告を出す距離の比率（0.7 = 70%以内ならOK、それより近いと警告） */
+export const SAFE_ZONE_WARN_RADIUS_RATIO = 0.8;
+/** 強制リセットを促す距離の比率（0.5 = 50%より近い場合） */
+export const SAFE_ZONE_RESET_RADIUS_RATIO = 0.6;
 /** トレース線の太さ（基準サイズ換算） */
 export const TRACE_STROKE_WIDTH = 8;
 /** 中心点判定の許容誤差 */

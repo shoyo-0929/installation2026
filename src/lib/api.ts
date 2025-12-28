@@ -61,9 +61,10 @@ export async function fetchPhrase(
 // ============================================================
 
 /** 画像アップロード API の URL（環境変数で設定可能） */
+// 本番: 'https://rashinbanban.jp/2026/api/pub.php' (PHPプロキシ経由)
+// テスト用: '/api/upload'
 export const UPLOAD_API_URL =
-  process.env.NEXT_PUBLIC_UPLOAD_API_URL || '/api/upload';
-  // process.env.NEXT_PUBLIC_UPLOAD_API_URL || 'https://rashinbanban.jp/2026/api/pub.php';
+  process.env.NEXT_PUBLIC_UPLOAD_API_URL || 'https://rashinbanban.jp/2026/installation/api/pub.php';
 
 /** 画像アップロード時に送信するメタデータ */
 export type UploadMetadata = {

@@ -1,6 +1,5 @@
 'use client';
 
-import NextImage from 'next/image';
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import { type PhraseResponse } from '@/lib/api';
@@ -20,10 +19,12 @@ import {
   BASE_CANVAS_SIZE,
   SAFE_ZONE_PADDING,
   SAFE_ZONE_WARN_RADIUS_RATIO,
+  SAFE_ZONE_RESET_RADIUS_RATIO,
   TRACE_STROKE_WIDTH,
   type SafeZoneInfo,
   getSafeZoneDistanceRatio,
 } from '@/lib/trace-utils';
+import type { SafeZoneDebug } from '@/components/canvas/SafeZoneDebugOverlay';
 import { generateTraceImage } from '@/lib/image-generation';
 import { useTraceLogic } from '@/hooks/useTraceLogic';
 import { useCutoutUpload } from '@/hooks/useCutoutUpload';
@@ -212,6 +213,28 @@ export function Main({
     getSafeZoneInfo,
     resetGeneratedImage: clearGeneratedImageUrl,
   });
+
+  // デバッグ用の安全領域情報を計算
+  const [safeZoneDebug, setSafeZoneDebug] = useState<SafeZoneDebug | null>(null);
+
+  useEffect(() => {
+    if (!showDebugControls) {
+      setSafeZoneDebug(null);
+      return;
+    }
+    // 少し遅延させてDOM計算が確定してから取得
+    const timer = setTimeout(() => {
+      const info = getSafeZoneInfo();
+      if (!info) return;
+      const radius = Math.min(info.safeZoneWidth, info.safeZoneHeight) / 2;
+      const centerX = (info.safeZoneX + info.safeZoneWidth / 2) / info.scale;
+      const centerY = (info.safeZoneY + info.safeZoneHeight / 2) / info.scale;
+      const warnRadius = (radius * SAFE_ZONE_WARN_RADIUS_RATIO) / info.scale;
+      const resetRadius = (radius * SAFE_ZONE_RESET_RADIUS_RATIO) / info.scale;
+      setSafeZoneDebug({ centerX, centerY, warnRadius, resetRadius });
+    }, 100);
+    return () => clearTimeout(timer);
+  }, [showDebugControls, getSafeZoneInfo]);
 
   // 生成された画像のクリーンアップ
   useEffect(() => {
@@ -441,7 +464,7 @@ export function Main({
           nameRef={nameRef}
           branchRef={branchRef}
           traceRef={traceRef}
-          safeZoneDebug={null}
+          safeZoneDebug={safeZoneDebug}
           onTraceEnd={handleTraceEnd}
           strokeWidth={TRACE_STROKE_WIDTH}
         />

@@ -39,7 +39,7 @@ if ($_SERVER['REQUEST_METHOD'] !== 'POST') {
 // 設定
 $uploadDir = __DIR__ . '/uploads/';  // 画像保存ディレクトリ
 $baseUrl = 'https://rashinbanban.jp/2026/installation/api/uploads/';  // 公開URL
-$targetUrl = 'http://ar.rashinbanban.jp/pub.php';  // 転送先
+$targetUrl = 'https://ar.rashinbanban.jp/pub.php';  // 転送先
 
 // アップロードディレクトリがなければ作成
 if (!is_dir($uploadDir)) {

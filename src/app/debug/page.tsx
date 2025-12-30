@@ -9,11 +9,11 @@
  */
 'use client';
 
-import { useState } from 'react';
+import { useState, Suspense } from 'react';
 import { Main } from '@/components/main/Main';
 import { bodaiList } from '@/data/bodaiList';
 
-export default function DebugPage() {
+function DebugContent() {
   const [currentIndex, setCurrentIndex] = useState(0);
 
   const currentBodai = bodaiList[currentIndex];
@@ -68,5 +68,13 @@ export default function DebugPage() {
         </button>
       </div>
     </>
+  );
+}
+
+export default function DebugPage() {
+  return (
+    <Suspense fallback={<div>Loading...</div>}>
+      <DebugContent />
+    </Suspense>
   );
 }

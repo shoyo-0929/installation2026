@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useMemo, useRef, useCallback } from 'react';
-import { useRouter } from 'next/navigation';
+import { useRouter, useSearchParams } from 'next/navigation';
 import { type PhraseResponse } from '@/lib/api';
 import { SafeZoneDialogs } from '@/components/main/SafeZoneDialogs';
 import { TraceStage } from '@/components/canvas/TraceStage';
@@ -61,6 +61,7 @@ export function Main({
   showDebugControls = false,
 }: AfterLoginScreenProps) {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { myPhrase } = phraseData;
 
   // DOM要素への参照（画像生成時に使用）
@@ -409,8 +410,9 @@ export function Main({
   const handleBackToTop = useCallback(() => {
     sessionStorage.removeItem('installation2026.phrase');
     sessionStorage.removeItem('installation2026.mid');
-    router.push('/');
-  }, [router]);
+    const queryString = searchParams.toString();
+    router.push(queryString ? `/?${queryString}` : '/');
+  }, [router, searchParams]);
 
   // データが見つからない場合のフォールバック
   if (!currentBodai) {
@@ -483,7 +485,6 @@ export function Main({
           onRedo={handleRestartTrace}
         />
 
-        {/* 送信成功アニメーション */}
         <SubmitSuccessAnimation
           open={showSuccessAnimation}
           imageUrl={successImageUrl}

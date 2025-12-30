@@ -16,6 +16,7 @@ import { preloadSounds } from '@/lib/sound';
 import { TextFieldCard } from './TextFieldCard';
 import { BackgroundPattern } from '@/components/ui/BackgroundPattern';
 import logo from '@/assets/img/logo.png';
+import iconMusic from '@/assets/img/icon_note.png';
 
 import mainTitle from '@/assets/img/main-title.png';
 
@@ -105,6 +106,12 @@ export function LoginForm() {
           >
             {isSubmitting ? '送信中…' : '次へ'}
           </button>
+          <div className='mt-2 flex justify-center items-center gap-2 w-full'>
+            <Image src={iconMusic} alt="GLA" className="w-6" />
+            <span className="block text-xs text-center text-black ">
+              ※この後のページではサウンドが流れますので、<br />事前に音量の設定をご調整ください。
+            </span>
+          </div>
         </form>
         <div className="mt-auto py-6 mx-auto w-16">
           <Image src={logo} alt="GLA" className="w-full h-auto" priority />

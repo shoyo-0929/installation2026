@@ -39,16 +39,6 @@ export function preloadSounds() {
 }
 
 /**
- * 次へ・確定ボタンの効果音を再生する
- */
-export function playButtonSound() {
-  if (btnNextAudio) {
-    btnNextAudio.currentTime = 0;
-    btnNextAudio.play().catch(() => {});
-  }
-}
-
-/**
  * 上に上がるアニメーションの効果音を再生する
  */
 export function playRaiseSound() {

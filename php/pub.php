@@ -105,6 +105,9 @@ file_put_contents(
     FILE_APPEND
 );
 
+// 7秒待機
+sleep(7);
+
 // cURLで転送
 $ch = curl_init();
 curl_setopt($ch, CURLOPT_URL, $targetUrl);
@@ -120,25 +123,41 @@ $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 $error = curl_error($ch);
 curl_close($ch);
 
-file_put_contents('/tmp/pub_debug.log', date('Y-m-d H:i:s') . " Response: " . $httpCode . " - " . $response . "\n", FILE_APPEND);
+$debug = array(
+    'proxyHttpCode' => $httpCode,
+    'proxyError' => $error,
+    'proxyResponse' => $response,
+);
 
-// エラーハンドリング
 if ($error) {
     header('HTTP/1.1 500 Internal Server Error');
-    echo json_encode(array('success' => false, 'error' => 'Connection failed: ' . $error, 'imageUrl' => $imageUrl));
+    echo json_encode(array(
+        'success' => false,
+        'error' => 'Connection failed: ' . $error,
+        'imageUrl' => $imageUrl,
+        'proxy' => $debug,
+    ), JSON_UNESCAPED_UNICODE);
     exit;
 }
 
-// レスポンスをそのまま返す（画像URLも追加）
 if ($httpCode >= 400) {
     header('HTTP/1.1 ' . $httpCode);
-    echo json_encode(array('success' => false, 'error' => 'Remote server error: ' . $httpCode, 'imageUrl' => $imageUrl));
-} else {
-    // 成功時は画像URLも返す
-    $result = json_decode($response, true);
-    if ($result === null) {
-        $result = array('success' => true);
-    }
-    $result['imageUrl'] = $imageUrl;
-    echo json_encode($result);
+    echo json_encode(array(
+        'success' => false,
+        'error' => 'Remote server error: ' . $httpCode,
+        'imageUrl' => $imageUrl,
+        'proxy' => $debug,
+    ), JSON_UNESCAPED_UNICODE);
+    exit;
 }
+
+$result = json_decode($response, true);
+if ($result === null) {
+    $result = array('success' => true);
+}
+$result['debugVersion'] = '2025-12-28-1';
+$result['imageUrl'] = $imageUrl;
+$result['proxy'] = $debug;
+
+echo json_encode($result, JSON_UNESCAPED_UNICODE);
+exit;

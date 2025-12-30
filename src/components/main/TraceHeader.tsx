@@ -15,7 +15,7 @@ export function TraceHeader() {
         </p>
       </div> */}
 
-      <div className="flex items-center gap-3 mt-6 mb-8 w-full px-4 ">
+      <div className="flex items-center gap-3 mt-6 mb-4 w-full px-4 ">
         <p className="font-bold text-[18px] text-black leading-normal flex-1">
           想いを込めて、功徳をぐるっと囲う形を描いてみましょう。あなたの功徳が、描いた形で型取られ、アートスペースに送られます！
         </p>

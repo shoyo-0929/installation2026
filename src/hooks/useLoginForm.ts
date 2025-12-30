@@ -10,7 +10,6 @@ import { useEffect, useRef, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { fetchPhrase } from '@/lib/api';
 import { getPreferredLang } from '@/lib/lang';
-import { playButtonSound } from '@/lib/sound';
 import {
   clearRememberedCredentials,
   loadRememberedCredentials,
@@ -105,7 +104,6 @@ export function useLoginForm(searchParams: URLSearchParams | null) {
     submitAbortRef.current = abortController;
 
     // ----- 送信開始 -----
-    playButtonSound();
     setIsSubmitting(true);
     setBirthDateError(null);
     setMemberIdError(null);
@@ -118,17 +116,23 @@ export function useLoginForm(searchParams: URLSearchParams | null) {
         // 400: 投稿が見つからない → 外部ページへリダイレクト
         if (result.status === 400) {
           const lang = getPreferredLang();
-          window.location.assign(`https://rashinbanban.jp/2026/${lang}/`);
+          window.location.assign(
+            `https://rashinbanban.jp/2026/${lang}/index.php?a=${mid}&b=${birth}`
+          );
           return;
         }
         // 401: 会員番号が存在しない
         if (result.status === 401) {
-          setMemberIdError('会員番号が見つかりませんでした。入力内容をご確認ください。');
+          setMemberIdError(
+            '会員番号が見つかりませんでした。入力内容をご確認ください。'
+          );
           setBirthDateError(null);
           return;
         }
         // その他のエラー
-        setBirthDateError('通信に失敗しました。時間をおいて再度お試しください。');
+        setBirthDateError(
+          '通信に失敗しました。時間をおいて再度お試しください。'
+        );
         return;
       }
 
@@ -136,7 +140,10 @@ export function useLoginForm(searchParams: URLSearchParams | null) {
       // 次画面で使用するため sessionStorage に保存
       sessionStorage.setItem('installation2026.mid', mid);
       sessionStorage.setItem('installation2026.birthDate', birth);
-      sessionStorage.setItem('installation2026.phrase', JSON.stringify(result.data));
+      sessionStorage.setItem(
+        'installation2026.phrase',
+        JSON.stringify(result.data)
+      );
 
       // 「保存する」にチェックがある場合は localStorage にも保存
       if (rememberMe) {
@@ -152,9 +159,13 @@ export function useLoginForm(searchParams: URLSearchParams | null) {
         // ブラウザのネイティブエラーメッセージを日本語に変換
         const error = err as Error | null;
         if (error?.message === 'Failed to fetch') {
-          setBirthDateError('サーバーに接続できませんでした。ネットワーク接続を確認してください。');
+          setBirthDateError(
+            'サーバーに接続できませんでした。ネットワーク接続を確認してください。'
+          );
         } else {
-          setBirthDateError('通信に失敗しました。時間をおいて再度お試しください。');
+          setBirthDateError(
+            '通信に失敗しました。時間をおいて再度お試しください。'
+          );
         }
       }
     } finally {

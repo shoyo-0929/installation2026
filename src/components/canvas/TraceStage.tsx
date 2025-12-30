@@ -128,10 +128,10 @@ export function TraceStage({
 
           <div className="flex flex-col items-center">
             {/* 投稿本文 */}
-            <div className="text-center mb-3 w-full max-w-[240px]">
+            <div className="text-center mb-3 w-full max-w-60">
               <p
                 ref={bodyRef}
-                className={`text-[18px] font-bold leading-normal ${bodai.textColor}`}
+                className={`text-[18px] font-bold leading-normal break-all ${bodai.textColor}`}
               >
                 {phraseLines.map((line, index) => (
                   <React.Fragment key={index}>

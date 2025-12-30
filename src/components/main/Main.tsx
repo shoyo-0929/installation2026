@@ -28,10 +28,7 @@ import type { SafeZoneDebug } from '@/components/canvas/SafeZoneDebugOverlay';
 import { generateTraceImage } from '@/lib/image-generation';
 import { useTraceLogic } from '@/hooks/useTraceLogic';
 import { useCutoutUpload } from '@/hooks/useCutoutUpload';
-import {
-  preloadSounds,
-  playRaiseSound,
-} from '@/lib/sound';
+import { preloadSounds, playRaiseSound } from '@/lib/sound';
 
 export interface AfterLoginScreenProps {
   /** 会員の投稿情報 */
@@ -215,7 +212,9 @@ export function Main({
   });
 
   // デバッグ用の安全領域情報を計算
-  const [safeZoneDebug, setSafeZoneDebug] = useState<SafeZoneDebug | null>(null);
+  const [safeZoneDebug, setSafeZoneDebug] = useState<SafeZoneDebug | null>(
+    null
+  );
 
   useEffect(() => {
     if (!showDebugControls) {
@@ -353,11 +352,7 @@ export function Main({
     setSafeZoneWarningRatio(null);
     setTraceReady(true); // trueにしてプレビューを表示
     handleGenerateImage({ allowUnsafe: true });
-  }, [
-    handleGenerateImage,
-    setSafeZoneWarningRatio,
-    setTraceReady,
-  ]);
+  }, [handleGenerateImage, setSafeZoneWarningRatio, setTraceReady]);
 
   // リセット確認後の処理
   const handleConfirmReset = useCallback(() => {
@@ -448,6 +443,14 @@ export function Main({
         {/* 上部のメッセージボックスと説明文 */}
         <TraceHeader />
 
+        {/* 固定ボタンコンテナ（背景チェンジ・やり直す） */}
+        <div className="flex w-full justify-center pointer-events-none">
+          <div className="w-full max-w-[375px] flex justify-center gap-12 pb-2 pointer-events-auto">
+            <RedoButton onClick={handleRestartTrace} />
+            <BackgroundChangeButton onClick={handleBackgroundChange} />
+          </div>
+        </div>
+
         {/* トレースキャンバスを含むメインステージ */}
         <TraceStage
           bodai={currentBodai}
@@ -486,14 +489,6 @@ export function Main({
           imageUrl={successImageUrl}
           onComplete={handleAnimationComplete}
         />
-
-        {/* 下部固定ボタンコンテナ（背景チェンジ・やり直す） */}
-        <div className="fixed bottom-0 left-0 right-0 z-50 flex justify-center pointer-events-none">
-          <div className="w-full max-w-[375px] flex justify-between px-6 pb-4 pointer-events-auto">
-            <RedoButton onClick={handleRestartTrace} />
-            <BackgroundChangeButton onClick={handleBackgroundChange} />
-          </div>
-        </div>
 
         {/* デバッグコントロール（必要な場合） */}
         {showDebugControls && (

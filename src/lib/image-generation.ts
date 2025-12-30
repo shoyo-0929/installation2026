@@ -106,20 +106,15 @@ export const generateTraceImage = async ({
     BASE_CANVAS_SIZE
   );
 
-  // 3. マスク処理（Traceした形に背景を切り抜く）
-  outputCtx.globalCompositeOperation = 'destination-in';
-  outputCtx.drawImage(maskCanvas, 0, 0);
-  outputCtx.globalCompositeOperation = 'source-over';
-
-  // 4. アイコンの描画（DOMの位置・サイズに合わせて配置）
-  if (iconElement) {
-    const rect = toBaseRect(iconElement.getBoundingClientRect());
-    const iconImage = await loadImage(currentBodai.img.src);
-    outputCtx.drawImage(iconImage, rect.x, rect.y, rect.width, rect.height);
-  }
+  // 5. テキスト情報の合成
+  // テキスト描画時に、そのテキスト部分のマスク（背景保持）も同時に描画する
 
   // テキスト描画用のヘルパー関数（複数行対応）
-  const drawLines = (element: HTMLElement | null, lines: string[]) => {
+  const drawLines = (
+    element: HTMLElement | null,
+    lines: string[],
+    maskContext: CanvasRenderingContext2D
+  ) => {
     if (!element || lines.length === 0) return;
     const rect = toBaseRect(element.getBoundingClientRect());
     const style = window.getComputedStyle(element);
@@ -135,9 +130,12 @@ export const generateTraceImage = async ({
     outputCtx.textAlign = 'center';
     outputCtx.textBaseline = 'top';
 
+    // マスク用設定
+    maskContext.fillStyle = '#000';
+
     const x = rect.x + rect.width / 2;
     const scaledLineHeight = lineHeight * scale;
-    const maxWidth = rect.width; // rectは既にbase座標系に変換済みなのでそのまま使用
+    const maxWidth = rect.width;
 
     // 自動折り返し処理
     const wrappedLines: string[] = [];
@@ -159,12 +157,32 @@ export const generateTraceImage = async ({
     });
 
     wrappedLines.forEach((line, index) => {
-      outputCtx.fillText(line, x, rect.y + scaledLineHeight * index);
+      const lineY = rect.y + scaledLineHeight * index;
+      outputCtx.fillText(line, x, lineY);
+
+      // 行ごとの背景を描画（文字がある幅だけ四角く確保）
+      const metrics = outputCtx.measureText(line);
+      const maskPadding = 24; // 左右の余白 (スマホ画面で約8px程度に見えるように設定)
+      const textWidth = metrics.width + maskPadding * 2;
+      const textHeight = fontSize * scale;
+      // 上下にもパディングを追加
+      const rectHeight = textHeight + maskPadding * 2;
+
+      maskContext.fillRect(
+        x - textWidth / 2,
+        lineY - (rectHeight - textHeight) / 2,
+        textWidth,
+        rectHeight
+      );
     });
   };
 
   // テキスト描画用ヘルパー関数（単一行）
-  const drawSingleLine = (element: HTMLElement | null, text: string) => {
+  const drawSingleLine = (
+    element: HTMLElement | null,
+    text: string,
+    maskContext: CanvasRenderingContext2D
+  ) => {
     if (!element || !text) return;
     const rect = toBaseRect(element.getBoundingClientRect());
     const style = window.getComputedStyle(element);
@@ -177,14 +195,48 @@ export const generateTraceImage = async ({
     outputCtx.textAlign = 'center';
     outputCtx.textBaseline = 'top';
 
+    // マスク用設定
+    maskContext.fillStyle = '#000';
+
     const x = rect.x + rect.width / 2;
     outputCtx.fillText(text, x, rect.y);
+
+    // 背景を描画（文字がある幅だけ四角く確保）
+    const metrics = outputCtx.measureText(text);
+    const maskPadding = 24; // 左右の余白
+    const textWidth = metrics.width + maskPadding * 2;
+    const textHeight = fontSize * scale;
+    // 上下にもパディングを追加
+    const rectHeight = textHeight + maskPadding * 2;
+
+    maskContext.fillRect(
+      x - textWidth / 2,
+      rect.y - (rectHeight - textHeight) / 2,
+      textWidth,
+      rectHeight
+    );
   };
 
   // 5. テキスト情報の合成
-  drawLines(bodyElement, phraseLines);
-  drawSingleLine(nameElement, myPhrase.name ?? '');
-  drawSingleLine(branchElement, branchList[Number(myPhrase.branch)] ?? '');
+  drawLines(bodyElement, phraseLines, maskCtx);
+  drawSingleLine(nameElement, myPhrase.name ?? '', maskCtx);
+  drawSingleLine(
+    branchElement,
+    branchList[Number(myPhrase.branch)] ?? '',
+    maskCtx
+  );
+
+  // 3. マスク処理（Traceした形 + テキスト背景 で切り抜く）
+  outputCtx.globalCompositeOperation = 'destination-in';
+  outputCtx.drawImage(maskCanvas, 0, 0);
+  outputCtx.globalCompositeOperation = 'source-over';
+
+  // 4. アイコンの描画（DOMの位置・サイズに合わせて配置）
+  if (iconElement) {
+    const rect = toBaseRect(iconElement.getBoundingClientRect());
+    const iconImage = await loadImage(currentBodai.img.src);
+    outputCtx.drawImage(iconImage, rect.x, rect.y, rect.width, rect.height);
+  }
 
   // 6. 画像データの出力
   return new Promise<string>((resolve, reject) => {

@@ -9,7 +9,7 @@ export function RedoButton({ onClick }: RedoButtonProps) {
   return (
     <button
       onClick={onClick}
-      className="transition-transform hover:scale-105 active:scale-95 flex flex-col items-center gap-1"
+      className="w-24 transition-transform hover:scale-105 active:scale-95 flex flex-col items-center gap-1"
       aria-label="やり直す"
     >
       <div className="w-14 h-14 rounded-full flex items-center justify-center shadow-md">

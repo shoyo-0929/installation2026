@@ -8,9 +8,10 @@ import { TraceStage } from '@/components/canvas/TraceStage';
 import { TracePreviewDialog } from '@/components/main/TracePreviewDialog';
 import { SubmitSuccessAnimation } from '@/components/end/SubmitSuccessAnimation';
 import { CompletionScreen } from '@/components/end/CompletionScreen';
-import { TraceHeader } from '@/components/main/TraceHeader';
+import { TraceIntroDialog } from '@/components/main/TraceIntroDialog';
 import { BackgroundChangeButton } from '@/components/main/BackgroundChangeButton';
 import { RedoButton } from '@/components/main/RedoButton';
+import { BackButton } from '@/components/main/BackButton';
 import { DebugControls } from '@/components/main/DebugControls';
 import type { TraceCanvasHandle } from '@/components/canvas/TraceCanvas';
 import type { Bodai } from '@/types/bodai';
@@ -365,6 +366,9 @@ export function Main({
   const [successImageUrl, setSuccessImageUrl] = useState<string | null>(null);
   const [showCompletionScreen, setShowCompletionScreen] = useState(false);
 
+  // 初回説明ダイアログの表示状態
+  const [showIntro, setShowIntro] = useState(true);
+
   // 画像アップロードフック
   const { isUploading, uploadError, startUpload } = useCutoutUpload();
 
@@ -433,21 +437,10 @@ export function Main({
       className={`relative min-h-screen ${currentBodai.bgColor} overflow-hidden transition-colors duration-500`}
     >
       <main className="relative z-10 flex flex-col items-center justify-center pt-6 pb-12 min-h-screen w-full max-w-[375px] mx-auto">
-        {/* 左上の戻るボタン */}
-        <button
-          onClick={handleBackToTop}
-          className="absolute top-2 left-2 px-2 py-1 text-sm text-gray-600 hover:text-gray-900 font-semibold transition-colors"
-          aria-label="トップに戻る"
-        >
-          ← 戻る
-        </button>
-
-        {/* 上部のメッセージボックスと説明文 */}
-        <TraceHeader />
-
-        {/* 固定ボタンコンテナ（背景チェンジ・やり直す） */}
+        {/* 固定ボタンコンテナ（戻る・やり直す・背景チェンジ） */}
         <div className="flex w-full justify-center pointer-events-none">
-          <div className="w-full max-w-[375px] flex justify-center gap-12 pb-2 pointer-events-auto">
+          <div className="w-full  max-w-[375px] flex justify-center gap-6 pb-2 pointer-events-auto">
+            <BackButton onClick={handleBackToTop} />
             <RedoButton onClick={handleRestartTrace} />
             <BackgroundChangeButton onClick={handleBackgroundChange} />
           </div>
@@ -500,6 +493,12 @@ export function Main({
             displayBodaiId={displayBodaiId}
           />
         )}
+
+        {/* 初回説明ダイアログ */}
+        <TraceIntroDialog
+          open={showIntro}
+          onClose={() => setShowIntro(false)}
+        />
 
         {/* 各種警告・確認ダイアログ */}
         <SafeZoneDialogs

@@ -108,8 +108,8 @@ export function LoginForm() {
           </button>
           <div className='mt-2 flex justify-center items-center gap-2 w-full'>
             <Image src={iconMusic} alt="GLA" className="w-6" />
-            <span className="block text-xs text-center text-black ">
-              ※この後のページではサウンドが流れますので、<br />事前に音量の設定をご調整ください。
+            <span className="block text-sm whitespace-nowrap  text-center text-black ">
+              ※この後のページでサウンドが流れますので、<br />事前に音量の設定をご調整ください。
             </span>
           </div>
         </form>

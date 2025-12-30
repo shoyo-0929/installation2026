@@ -116,12 +116,12 @@ export function TraceStage({
       <div className="relative z-20 flex flex-col items-center justify-center p-6 w-full h-full pointer-events-none">
         <div ref={textGroupRef} className="flex flex-col items-center">
           {/* アイコン（稲穂など） */}
-          <div ref={iconRef} className="relative w-[60px] h-[60px] mb-4">
+          <div ref={iconRef} className="relative w-[72px] h-[72px] mb-4">
             <NextImage
               src={bodai.img}
               alt={bodai.name}
               fill
-              sizes="60px"
+              sizes="72px"
               className="object-contain"
             />
           </div>

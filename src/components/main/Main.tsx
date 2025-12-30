@@ -376,22 +376,32 @@ export function Main({
    * 送信確認ハンドラ
    * 画像をアップロードし、成功したらアニメーションを表示
    */
-  const handleConfirmSubmit = useCallback(async () => {
+  const handleConfirmSubmit = useCallback(() => {
     if (!generatedImageUrl || isUploading) return;
+    const imageUrl = generatedImageUrl;
+    setPreviewOpen(false); // プレビューを閉じて
+    setSuccessImageUrl(imageUrl);
+    setShowSuccessAnimation(true); // 成功アニメーション開始
+    playRaiseSound(); // 上に上がるアニメーションの効果音
 
-    await startUpload({
-      mid,
-      name: myPhrase.name ?? '',
-      bodaiId: displayBodaiId,
-      spot,
-      generatedImageUrl,
-      onSuccess: (url) => {
-        setPreviewOpen(false); // プレビューを閉じて
-        setSuccessImageUrl(url); // まだ画像は保持
-        setShowSuccessAnimation(true); // 成功アニメーション開始
-        playRaiseSound(); // 上に上がるアニメーションの効果音
-      },
-    });
+    const delayMs = spot && spot !== '0' ? 7000 : 0;
+    const runUpload = () => {
+      void startUpload({
+        mid,
+        name: myPhrase.name ?? '',
+        bodaiId: displayBodaiId,
+        spot,
+        generatedImageUrl: imageUrl,
+        onSuccess: () => {},
+      });
+    };
+
+    if (delayMs === 0) {
+      runUpload();
+      return;
+    }
+
+    setTimeout(runUpload, delayMs);
   }, [
     generatedImageUrl,
     isUploading,

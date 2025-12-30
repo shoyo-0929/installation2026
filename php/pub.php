@@ -105,13 +105,6 @@ file_put_contents(
     FILE_APPEND
 );
 
-// 7秒待機（spot=0以外の場合）
-if ($spot == 0) {
-    sleep(0);
-} else {
-    sleep(7);
-}
-
 // cURLで転送
 $ch = curl_init();
 curl_setopt($ch, CURLOPT_URL, $targetUrl);

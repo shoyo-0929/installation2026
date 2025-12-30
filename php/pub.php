@@ -99,58 +99,9 @@ $postData = array(
     'time' => date('Y/m/d H:i:s')
 );
 
-// ---------------------------------------------------------
-// クライアントへ早期レスポンス（アニメーション開始用）
-// ---------------------------------------------------------
-ignore_user_abort(true); // クライアントが切断しても処理を継続
-set_time_limit(0);       // タイムアウト無効化
-
-$responseToClient = array(
-    'success' => true,
-    'imageUrl' => $imageUrl,
-    'debugVersion' => '2025-12-31-async-v2'
-);
-$jsonResponse = json_encode($responseToClient, JSON_UNESCAPED_UNICODE);
-
-// バッファリング設定のクリア
-if (function_exists('apache_setenv')) {
-    apache_setenv('no-gzip', 1);
-}
-ini_set('zlib.output_compression', 0);
-ini_set('output_buffering', 'Off');
-ini_set('implicit_flush', 1);
-
-// 既存のバッファを全てクリア
-while (ob_get_level() > 0) {
-    ob_end_clean();
-}
-
-// レスポンスヘッダー送信
-header('Content-Type: application/json; charset=utf-8');
-header('Connection: close');
-header('Content-Encoding: none');
-header('Content-Length: ' . strlen($jsonResponse));
-
-// レスポンス出力
-echo $jsonResponse;
-
-// 強制フラッシュ
-if (function_exists('fastcgi_finish_request')) {
-    fastcgi_finish_request();
-} else {
-    flush();
-    // 一部のサーバー構成向けにダミーデータを出力してバッファを押し出す（必要であれば）
-    // echo str_repeat(' ', 4096); 
-    // flush();
-}
-
-// ---------------------------------------------------------
-// 以下、バックグラウンド処理（クライアントは待機しない）
-// ---------------------------------------------------------
-
 file_put_contents(
     '/tmp/pub_debug.log',
-    date('Y-m-d H:i:s') . " [BG] Response sent & closed. Starting background task. Data: " . json_encode($postData, JSON_UNESCAPED_UNICODE) . "\n",
+    date('Y-m-d H:i:s') . " Sending to ar: " . json_encode($postData, JSON_UNESCAPED_UNICODE) . "\n",
     FILE_APPEND
 );
 
@@ -176,8 +127,41 @@ $httpCode = curl_getinfo($ch, CURLINFO_HTTP_CODE);
 $error = curl_error($ch);
 curl_close($ch);
 
-// 結果をログに記録
-$logEntry = date('Y-m-d H:i:s') . " [BG] AR Server Response: Code=$httpCode, Error=" . ($error ? $error : 'None') . ", Response=$response\n";
-file_put_contents('/tmp/pub_debug.log', $logEntry, FILE_APPEND);
+$debug = array(
+    'proxyHttpCode' => $httpCode,
+    'proxyError' => $error,
+    'proxyResponse' => $response,
+);
 
+if ($error) {
+    header('HTTP/1.1 500 Internal Server Error');
+    echo json_encode(array(
+        'success' => false,
+        'error' => 'Connection failed: ' . $error,
+        'imageUrl' => $imageUrl,
+        'proxy' => $debug,
+    ), JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+if ($httpCode >= 400) {
+    header('HTTP/1.1 ' . $httpCode);
+    echo json_encode(array(
+        'success' => false,
+        'error' => 'Remote server error: ' . $httpCode,
+        'imageUrl' => $imageUrl,
+        'proxy' => $debug,
+    ), JSON_UNESCAPED_UNICODE);
+    exit;
+}
+
+$result = json_decode($response, true);
+if ($result === null) {
+    $result = array('success' => true);
+}
+$result['debugVersion'] = '2025-12-28-1';
+$result['imageUrl'] = $imageUrl;
+$result['proxy'] = $debug;
+
+echo json_encode($result, JSON_UNESCAPED_UNICODE);
 exit;
